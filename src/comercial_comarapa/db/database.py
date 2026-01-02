@@ -17,9 +17,17 @@ from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from comercial_comarapa.config import settings
+from comercial_comarapa.core.exceptions import (
+    DatabaseError,
+    InvalidDatabaseModeError,
+    TransactionError,
+    ValidationError,
+)
 
 if TYPE_CHECKING:
     from psycopg_pool import ConnectionPool
+
+    from comercial_comarapa.core.protocols import DatabaseClientProtocol
 
 # =============================================================================
 # ALLOWED TABLES AND COLUMNS (Whitelist for SQL Injection Prevention)
@@ -63,10 +71,14 @@ def _validate_identifier(name: str, allowed: frozenset[str], kind: str) -> str:
         The validated identifier.
 
     Raises:
-        ValueError: If identifier is not in allowlist.
+        ValidationError: If identifier is not in allowlist.
     """
     if name not in allowed:
-        raise ValueError(f"Invalid {kind} name: {name}")
+        raise ValidationError(
+            f"Invalid {kind} name: {name}",
+            field=kind,
+            details={"name": name, "allowed": list(allowed)[:10]},  # Limit for readability
+        )
     return name
 
 
@@ -85,7 +97,7 @@ def _validate_columns(columns: str) -> str:
         Validated columns string.
 
     Raises:
-        ValueError: If any column is not in allowlist.
+        ValidationError: If any column is not in allowlist.
     """
     if columns == "*":
         return columns
@@ -93,7 +105,11 @@ def _validate_columns(columns: str) -> str:
     col_list = [c.strip() for c in columns.split(",")]
     for col in col_list:
         if col not in ALLOWED_COLUMNS:
-            raise ValueError(f"Invalid column name: {col}")
+            raise ValidationError(
+                f"Invalid column name: {col}",
+                field="column",
+                details={"column": col},
+            )
     return columns
 
 
@@ -389,6 +405,9 @@ class TableQuery:
 
         Returns:
             QueryResult with data.
+
+        Raises:
+            DatabaseError: If query execution fails.
         """
         query, params = self._build_select_query()
 
@@ -406,9 +425,12 @@ class TableQuery:
                     data = data[0] if data else None
 
                 return QueryResult(data=data)
-            except Exception:
+            except Exception as e:
                 conn.rollback()
-                raise
+                raise DatabaseError(
+                    f"Query execution failed: {e}",
+                    {"table": self.table_name, "operation": "SELECT"},
+                ) from e
 
     def insert(self, data: dict) -> QueryResult:
         """Insert a record.
@@ -443,9 +465,12 @@ class TableQuery:
                     result = dict(zip(cols, row, strict=False)) if row else None
                 conn.commit()
                 return QueryResult(data=[result] if result else [])
-            except Exception:
+            except Exception as e:
                 conn.rollback()
-                raise
+                raise TransactionError(
+                    f"Insert failed: {e}",
+                    {"table": self.table_name, "operation": "INSERT"},
+                ) from e
 
     def update(self, data: dict) -> QueryResult:
         """Update records matching filters.
@@ -496,9 +521,12 @@ class TableQuery:
                     result = [dict(zip(cols, row, strict=False)) for row in rows]
                 conn.commit()
                 return QueryResult(data=result)
-            except Exception:
+            except Exception as e:
                 conn.rollback()
-                raise
+                raise TransactionError(
+                    f"Update failed: {e}",
+                    {"table": self.table_name, "operation": "UPDATE"},
+                ) from e
 
     def delete(self) -> QueryResult:
         """Delete records matching filters.
@@ -535,9 +563,12 @@ class TableQuery:
                     result = [dict(zip(cols, row, strict=False)) for row in rows]
                 conn.commit()
                 return QueryResult(data=result)
-            except Exception:
+            except Exception as e:
                 conn.rollback()
-                raise
+                raise TransactionError(
+                    f"Delete failed: {e}",
+                    {"table": self.table_name, "operation": "DELETE"},
+                ) from e
 
 
 # =============================================================================
@@ -557,14 +588,14 @@ class QueryResult:
 # =============================================================================
 
 
-def get_db_client() -> LocalDatabaseClient | Any:
+def get_db_client() -> DatabaseClientProtocol:
     """Get database client based on configuration.
 
     Returns:
-        LocalDatabaseClient for local mode, or Supabase Client for cloud mode.
+        Database client conforming to DatabaseClientProtocol.
 
     Raises:
-        ValueError: If configuration is invalid.
+        InvalidDatabaseModeError: If DATABASE_MODE is not 'local' or 'supabase'.
     """
     if settings.is_local_db:
         return LocalDatabaseClient()
@@ -573,13 +604,10 @@ def get_db_client() -> LocalDatabaseClient | Any:
 
         return get_supabase_client()
     else:
-        raise ValueError(
-            f"Invalid DATABASE_MODE: {settings.database_mode}. "
-            "Must be 'local' or 'supabase'."
-        )
+        raise InvalidDatabaseModeError(settings.database_mode)
 
 
-def get_db() -> LocalDatabaseClient | Any:
+def get_db() -> DatabaseClientProtocol:
     """Dependency for FastAPI to inject database client.
 
     Returns:

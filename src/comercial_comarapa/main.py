@@ -11,7 +11,13 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from comercial_comarapa import __version__
 from comercial_comarapa.config import settings
+from comercial_comarapa.core import register_exception_handlers
+from comercial_comarapa.core.logging import configure_logging, get_logger
 from comercial_comarapa.db.database import check_db_connection, close_pool
+
+# Configure logging on module load
+configure_logging()
+logger = get_logger(__name__)
 
 
 @asynccontextmanager
@@ -24,18 +30,22 @@ async def lifespan(_app: FastAPI):
         _app: FastAPI application instance (unused but required by lifespan protocol).
     """
     # Startup
-    print(f"[*] Starting {settings.app_name} v{__version__}")
-    print(f"[*] Environment: {settings.app_env}")
-    print(f"[*] Database mode: {settings.database_mode}")
-    print(f"[*] Debug mode: {settings.debug}")
+    logger.info(
+        "application_starting",
+        app_name=settings.app_name,
+        version=__version__,
+        environment=settings.app_env,
+        database_mode=settings.database_mode,
+        debug=settings.debug,
+    )
 
     yield
 
     # Shutdown
-    print(f"[*] Shutting down {settings.app_name}")
+    logger.info("application_shutting_down", app_name=settings.app_name)
     if settings.is_local_db:
         close_pool()
-        print("[*] Database connection pool closed")
+        logger.info("database_pool_closed")
 
 
 def create_app() -> FastAPI:
@@ -62,6 +72,9 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # Register exception handlers
+    register_exception_handlers(app)
 
     # Register routes
     register_routes(app)

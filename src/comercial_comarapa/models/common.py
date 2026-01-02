@@ -1,6 +1,5 @@
 """Common models for API responses and pagination."""
 
-from datetime import datetime
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -80,29 +79,6 @@ class ErrorResponse(BaseModel):
 
     success: bool = False
     error: ErrorDetail
-
-
-# =============================================================================
-# COMMON FIELD TYPES
-# =============================================================================
-
-
-class TimestampMixin(BaseModel):
-    """Mixin for timestamp fields."""
-
-    created_at: datetime = Field(description="Creation timestamp")
-
-
-class AuditMixin(TimestampMixin):
-    """Mixin for audit fields with update tracking."""
-
-    updated_at: datetime = Field(description="Last update timestamp")
-
-
-class IDMixin(BaseModel):
-    """Mixin for UUID primary key."""
-
-    id: UUID = Field(description="Unique identifier")
 
 
 # =============================================================================

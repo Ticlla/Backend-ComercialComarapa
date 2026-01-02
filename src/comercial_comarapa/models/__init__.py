@@ -7,9 +7,9 @@ Models are organized by domain:
 - product: Product CRUD and filter schemas
 - inventory: Inventory movement schemas
 - sale: Sale and sale item schemas
+- validators: Shared validation functions
 """
 
-# Common models
 # Category models
 from comercial_comarapa.models.category import (
     CategoryCreate,
@@ -19,16 +19,13 @@ from comercial_comarapa.models.category import (
 )
 from comercial_comarapa.models.common import (
     APIResponse,
-    AuditMixin,
     DeleteResponse,
     ErrorDetail,
     ErrorResponse,
-    IDMixin,
     MessageResponse,
     PaginatedResponse,
     PaginationMeta,
     PaginationParams,
-    TimestampMixin,
 )
 
 # Inventory models
@@ -67,9 +64,18 @@ from comercial_comarapa.models.sale import (
     SaleStatus,
 )
 
+# Validators
+from comercial_comarapa.models.validators import (
+    decimal_validator,
+    decimal_validator_required,
+    non_negative_int_validator,
+    positive_int_validator,
+    strip_string_validator,
+    uppercase_string_validator,
+)
+
 __all__ = [
     "APIResponse",
-    "AuditMixin",
     "CategoryCreate",
     "CategoryResponse",
     "CategoryUpdate",
@@ -78,7 +84,6 @@ __all__ = [
     "DeleteResponse",
     "ErrorDetail",
     "ErrorResponse",
-    "IDMixin",
     "LowStockProduct",
     "MessageResponse",
     "MovementFilter",
@@ -106,5 +111,10 @@ __all__ = [
     "StockAdjustmentRequest",
     "StockEntryRequest",
     "StockExitRequest",
-    "TimestampMixin",
+    "decimal_validator",
+    "decimal_validator_required",
+    "non_negative_int_validator",
+    "positive_int_validator",
+    "strip_string_validator",
+    "uppercase_string_validator",
 ]
