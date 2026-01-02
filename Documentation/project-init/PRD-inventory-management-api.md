@@ -41,9 +41,9 @@ This document outlines the requirements for building a REST API backend system f
 
 ## 2. Project Scope
 
-> **Current Focus: Phase 0 - Project Configuration**
+> **Current Focus: Phase 1 - Backend REST API (M0 Completed)**
 > 
-> Before implementing the API, we must establish a solid project foundation:
+> Phase 0 is complete. Now implementing the REST API with local Docker environment:
 > Hatch setup, dependencies, folder structure, and database connection.
 > 
 > **Phase 1** will focus on Backend REST API development.
