@@ -286,6 +286,44 @@ docker exec -it comercial_comarapa_db psql -U postgres -d comercial_comarapa
 | 1.5 | Create Sale schemas | `models/sale.py` | ⬜ |
 | 1.6 | Export all models in `__init__.py` | `models/__init__.py` | ⬜ |
 
+### Tests
+
+| # | Test | File | Status |
+|---|------|------|--------|
+| 1.T1 | Test Category model validation | `tests/models/test_category.py` | ⬜ |
+| 1.T2 | Test Product model validation | `tests/models/test_product.py` | ⬜ |
+| 1.T3 | Test Inventory model validation | `tests/models/test_inventory.py` | ⬜ |
+| 1.T4 | Test Sale model validation | `tests/models/test_sale.py` | ⬜ |
+| 1.T5 | Run `hatch run lint` | - | ⬜ |
+| 1.T6 | Run `hatch run test` | - | ⬜ |
+
+### Test Cases (M1)
+
+```python
+# tests/models/test_category.py
+def test_category_create_valid():
+    """Valid category creation"""
+    
+def test_category_name_required():
+    """Name is required, should fail without it"""
+    
+def test_category_name_max_length():
+    """Name max 100 chars"""
+
+# tests/models/test_product.py
+def test_product_create_valid():
+    """Valid product with all fields"""
+    
+def test_product_sku_required():
+    """SKU is required"""
+    
+def test_product_price_non_negative():
+    """unit_price must be >= 0"""
+    
+def test_product_filter_defaults():
+    """Filter defaults to is_active=True"""
+```
+
 ### Deliverables
 
 ```
@@ -504,6 +542,53 @@ class DailySummary:
 | 2.4 | Register router in main app | `api/v1/router.py` | ⬜ |
 | 2.5 | Test endpoints manually | Swagger UI | ⬜ |
 
+### Tests
+
+| # | Test | File | Status |
+|---|------|------|--------|
+| 2.T1 | Test list categories | `tests/api/test_categories.py` | ⬜ |
+| 2.T2 | Test get category by ID | `tests/api/test_categories.py` | ⬜ |
+| 2.T3 | Test create category | `tests/api/test_categories.py` | ⬜ |
+| 2.T4 | Test update category | `tests/api/test_categories.py` | ⬜ |
+| 2.T5 | Test delete category | `tests/api/test_categories.py` | ⬜ |
+| 2.T6 | Test duplicate name error | `tests/api/test_categories.py` | ⬜ |
+| 2.T7 | Run `hatch run test` | - | ⬜ |
+
+### Test Cases (M2)
+
+```python
+# tests/api/test_categories.py
+class TestCategoriesAPI:
+    def test_list_categories_empty(self, client):
+        """GET /categories returns empty list initially"""
+        
+    def test_list_categories_with_data(self, client, seed_categories):
+        """GET /categories returns seeded categories"""
+        
+    def test_create_category_success(self, client):
+        """POST /categories creates new category"""
+        response = client.post("/api/v1/categories", json={"name": "Test"})
+        assert response.status_code == 201
+        
+    def test_create_category_duplicate_name(self, client, seed_categories):
+        """POST /categories with duplicate name returns 409"""
+        
+    def test_get_category_by_id(self, client, seed_categories):
+        """GET /categories/{id} returns category"""
+        
+    def test_get_category_not_found(self, client):
+        """GET /categories/{invalid_id} returns 404"""
+        
+    def test_update_category(self, client, seed_categories):
+        """PUT /categories/{id} updates category"""
+        
+    def test_delete_category(self, client, seed_categories):
+        """DELETE /categories/{id} returns 204"""
+        
+    def test_delete_category_with_products(self, client, seed_products):
+        """DELETE category with products returns 409"""
+```
+
 ### API Endpoints
 
 | Method | Endpoint | Description | Request | Response |
@@ -536,6 +621,64 @@ class DailySummary:
 | 3.5 | Implement low-stock endpoint | `api/v1/products.py` | ⬜ |
 | 3.6 | Register router | `api/v1/router.py` | ⬜ |
 | 3.7 | Test endpoints | Swagger UI | ⬜ |
+
+### Tests
+
+| # | Test | File | Status |
+|---|------|------|--------|
+| 3.T1 | Test list products with pagination | `tests/api/test_products.py` | ⬜ |
+| 3.T2 | Test get product by ID | `tests/api/test_products.py` | ⬜ |
+| 3.T3 | Test get product by SKU | `tests/api/test_products.py` | ⬜ |
+| 3.T4 | Test create product | `tests/api/test_products.py` | ⬜ |
+| 3.T5 | Test update product | `tests/api/test_products.py` | ⬜ |
+| 3.T6 | Test soft delete product | `tests/api/test_products.py` | ⬜ |
+| 3.T7 | Test search products | `tests/api/test_products.py` | ⬜ |
+| 3.T8 | Test filter by category | `tests/api/test_products.py` | ⬜ |
+| 3.T9 | Test low-stock endpoint | `tests/api/test_products.py` | ⬜ |
+| 3.T10 | Test duplicate SKU error | `tests/api/test_products.py` | ⬜ |
+| 3.T11 | Run `hatch run test` | - | ⬜ |
+
+### Test Cases (M3)
+
+```python
+# tests/api/test_products.py
+class TestProductsAPI:
+    def test_list_products_paginated(self, client, seed_products):
+        """GET /products returns paginated response"""
+        response = client.get("/api/v1/products?page=1&page_size=10")
+        assert response.status_code == 200
+        assert "pagination" in response.json()
+        
+    def test_create_product_success(self, client, seed_categories):
+        """POST /products creates new product"""
+        
+    def test_create_product_duplicate_sku(self, client, seed_products):
+        """POST /products with duplicate SKU returns 409"""
+        
+    def test_get_product_by_sku(self, client, seed_products):
+        """GET /products/sku/{sku} returns product"""
+        
+    def test_search_products_by_name(self, client, seed_products):
+        """GET /products/search?q=coca returns matching products"""
+        
+    def test_search_products_by_sku(self, client, seed_products):
+        """GET /products/search?q=BEB returns matching products"""
+        
+    def test_filter_by_category(self, client, seed_products):
+        """GET /products?category_id=xxx returns filtered products"""
+        
+    def test_filter_in_stock(self, client, seed_products):
+        """GET /products?in_stock=true returns products with stock > 0"""
+        
+    def test_low_stock_products(self, client, seed_low_stock):
+        """GET /products/low-stock returns products below min level"""
+        
+    def test_soft_delete_product(self, client, seed_products):
+        """DELETE /products/{id} sets is_active=false"""
+        
+    def test_deleted_product_not_in_list(self, client, seed_products):
+        """Soft-deleted products not returned in list"""
+```
 
 ### API Endpoints
 
@@ -576,6 +719,61 @@ class DailySummary:
 | 4.7 | Register router | `api/v1/router.py` | ⬜ |
 | 4.8 | Test endpoints | Swagger UI | ⬜ |
 
+### Tests
+
+| # | Test | File | Status |
+|---|------|------|--------|
+| 4.T1 | Test stock entry increases stock | `tests/api/test_inventory.py` | ⬜ |
+| 4.T2 | Test stock exit decreases stock | `tests/api/test_inventory.py` | ⬜ |
+| 4.T3 | Test stock exit insufficient error | `tests/api/test_inventory.py` | ⬜ |
+| 4.T4 | Test stock adjustment | `tests/api/test_inventory.py` | ⬜ |
+| 4.T5 | Test movement history by product | `tests/api/test_inventory.py` | ⬜ |
+| 4.T6 | Test movement records previous/new stock | `tests/api/test_inventory.py` | ⬜ |
+| 4.T7 | Run `hatch run test` | - | ⬜ |
+
+### Test Cases (M4)
+
+```python
+# tests/api/test_inventory.py
+class TestInventoryAPI:
+    def test_stock_entry_success(self, client, seed_products):
+        """POST /inventory/entry increases product stock"""
+        product = seed_products[0]
+        initial_stock = product.current_stock
+        response = client.post("/api/v1/inventory/entry", json={
+            "product_id": str(product.id),
+            "quantity": 50,
+            "reason": "PURCHASE"
+        })
+        assert response.status_code == 201
+        assert response.json()["new_stock"] == initial_stock + 50
+        
+    def test_stock_exit_success(self, client, seed_products):
+        """POST /inventory/exit decreases product stock"""
+        
+    def test_stock_exit_insufficient_stock(self, client, seed_products):
+        """POST /inventory/exit with qty > stock returns 422"""
+        response = client.post("/api/v1/inventory/exit", json={
+            "product_id": str(product.id),
+            "quantity": 9999,
+            "reason": "DAMAGE"
+        })
+        assert response.status_code == 422
+        assert "INSUFFICIENT_STOCK" in response.json()["error"]["code"]
+        
+    def test_stock_adjustment(self, client, seed_products):
+        """POST /inventory/adjustment sets exact stock value"""
+        
+    def test_movement_records_previous_stock(self, client, seed_products):
+        """Movement record contains correct previous_stock"""
+        
+    def test_get_movements_by_product(self, client, seed_products):
+        """GET /inventory/movements/{product_id} returns history"""
+        
+    def test_movements_ordered_by_date_desc(self, client, seed_products):
+        """Movements returned newest first"""
+```
+
 ### API Endpoints
 
 | Method | Endpoint | Description | Request | Response |
@@ -613,6 +811,64 @@ class DailySummary:
 | 5.7 | Create Sales router | `api/v1/sales.py` | ⬜ |
 | 5.8 | Register router | `api/v1/router.py` | ⬜ |
 | 5.9 | Test endpoints | Swagger UI | ⬜ |
+
+### Tests
+
+| # | Test | File | Status |
+|---|------|------|--------|
+| 5.T1 | Test create sale success | `tests/api/test_sales.py` | ⬜ |
+| 5.T2 | Test sale deducts inventory | `tests/api/test_sales.py` | ⬜ |
+| 5.T3 | Test sale creates movement records | `tests/api/test_sales.py` | ⬜ |
+| 5.T4 | Test sale insufficient stock error | `tests/api/test_sales.py` | ⬜ |
+| 5.T5 | Test cancel sale restores stock | `tests/api/test_sales.py` | ⬜ |
+| 5.T6 | Test cancel already cancelled error | `tests/api/test_sales.py` | ⬜ |
+| 5.T7 | Test sale number auto-generated | `tests/api/test_sales.py` | ⬜ |
+| 5.T8 | Test daily summary | `tests/api/test_sales.py` | ⬜ |
+| 5.T9 | Test list sales with date filter | `tests/api/test_sales.py` | ⬜ |
+| 5.T10 | Run `hatch run test` | - | ⬜ |
+
+### Test Cases (M5)
+
+```python
+# tests/api/test_sales.py
+class TestSalesAPI:
+    def test_create_sale_success(self, client, seed_products):
+        """POST /sales creates sale and returns 201"""
+        response = client.post("/api/v1/sales", json={
+            "items": [
+                {"product_id": str(product.id), "quantity": 2}
+            ]
+        })
+        assert response.status_code == 201
+        assert response.json()["sale_number"].startswith("2026-")
+        
+    def test_create_sale_deducts_inventory(self, client, seed_products):
+        """Sale creation reduces product stock"""
+        initial_stock = get_product_stock(product.id)
+        create_sale(product.id, quantity=5)
+        assert get_product_stock(product.id) == initial_stock - 5
+        
+    def test_create_sale_creates_movements(self, client, seed_products):
+        """Sale creates EXIT movement for each item"""
+        
+    def test_create_sale_insufficient_stock(self, client, seed_products):
+        """Sale with qty > stock returns 422"""
+        
+    def test_cancel_sale_success(self, client, seed_sales):
+        """POST /sales/{id}/cancel sets status to CANCELLED"""
+        
+    def test_cancel_sale_restores_stock(self, client, seed_sales):
+        """Cancelling sale restores product stock"""
+        
+    def test_cancel_already_cancelled(self, client, seed_sales):
+        """Cannot cancel already cancelled sale - returns 409"""
+        
+    def test_daily_summary(self, client, seed_sales):
+        """GET /sales/summary/daily returns correct totals"""
+        
+    def test_list_sales_date_filter(self, client, seed_sales):
+        """GET /sales?date=2026-01-02 filters by date"""
+```
 
 ### API Endpoints
 
@@ -661,6 +917,51 @@ class DailySummary:
 | 6.2 | Create exception handlers | `core/exceptions.py` | ⬜ |
 | 6.3 | Register handlers in main.py | `main.py` | ⬜ |
 | 6.4 | Create response helpers | `core/responses.py` | ⬜ |
+
+### Tests
+
+| # | Test | File | Status |
+|---|------|------|--------|
+| 6.T1 | Test 404 error format | `tests/test_errors.py` | ⬜ |
+| 6.T2 | Test 400 validation error format | `tests/test_errors.py` | ⬜ |
+| 6.T3 | Test 409 conflict error format | `tests/test_errors.py` | ⬜ |
+| 6.T4 | Test 422 business rule error format | `tests/test_errors.py` | ⬜ |
+| 6.T5 | Test 500 internal error format | `tests/test_errors.py` | ⬜ |
+| 6.T6 | Run `hatch run test` | - | ⬜ |
+
+### Test Cases (M6)
+
+```python
+# tests/test_errors.py
+class TestErrorHandling:
+    def test_not_found_error_format(self, client):
+        """404 errors return standard format"""
+        response = client.get("/api/v1/products/invalid-uuid")
+        assert response.status_code == 404
+        assert response.json() == {
+            "success": False,
+            "error": {
+                "code": "PRODUCT_NOT_FOUND",
+                "message": "Product not found",
+                "details": None
+            }
+        }
+        
+    def test_validation_error_format(self, client):
+        """400 validation errors include field details"""
+        response = client.post("/api/v1/products", json={})
+        assert response.status_code == 400
+        assert "details" in response.json()["error"]
+        
+    def test_conflict_error_format(self, client, seed_categories):
+        """409 conflict errors return standard format"""
+        
+    def test_insufficient_stock_error(self, client, seed_products):
+        """422 business rule errors include context"""
+        
+    def test_internal_error_hides_details(self, client):
+        """500 errors don't expose internal details"""
+```
 
 ### Exception Hierarchy
 
@@ -793,29 +1094,100 @@ M6: Error Handling (parallel with M1)
 
 ## Testing Checklist
 
-### Per Milestone
+### Per Milestone Checklist
 
-- [ ] All endpoints return correct status codes
-- [ ] Validation errors return 400/422
-- [ ] Not found returns 404
-- [ ] Swagger documentation accurate
-- [ ] Ruff linting passes
+| Check | M1 | M2 | M3 | M4 | M5 | M6 |
+|-------|----|----|----|----|----|----|
+| `hatch run lint` passes | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| `hatch run test` passes | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| All endpoints return correct status codes | - | ⬜ | ⬜ | ⬜ | ⬜ | - |
+| Validation errors return 400/422 | - | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| Not found returns 404 | - | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| Swagger documentation accurate | - | ⬜ | ⬜ | ⬜ | ⬜ | - |
+| Business rules validated | - | ⬜ | ⬜ | ⬜ | ⬜ | - |
+
+### Test Commands
+
+```bash
+# Run all tests
+hatch run test
+
+# Run with coverage
+hatch run test-cov
+
+# Run specific milestone tests
+hatch run test tests/models/          # M1
+hatch run test tests/api/test_categories.py  # M2
+hatch run test tests/api/test_products.py    # M3
+hatch run test tests/api/test_inventory.py   # M4
+hatch run test tests/api/test_sales.py       # M5
+hatch run test tests/test_errors.py          # M6
+```
 
 ### End-to-End Flow Test
 
-```
-1. Create category "Beverages"
-2. Create product "Coca Cola 2L" in Beverages
-3. Add stock entry: +100 units
-4. Verify product.current_stock = 100
-5. Create sale: 5 units of Coca Cola
-6. Verify product.current_stock = 95
-7. Verify inventory_movement created
-8. Cancel sale
-9. Verify product.current_stock = 100 (restored)
-10. Get low-stock products (should be empty)
-11. Create stock exit: 96 units
-12. Get low-stock products (should include Coca Cola)
+```python
+# tests/test_e2e_flow.py
+def test_complete_sale_flow(client):
+    """
+    End-to-end test of the complete sale flow
+    """
+    # 1. Create category "Beverages"
+    category = client.post("/api/v1/categories", json={"name": "Beverages"})
+    
+    # 2. Create product "Coca Cola 2L" in Beverages
+    product = client.post("/api/v1/products", json={
+        "sku": "BEB-001",
+        "name": "Coca Cola 2L",
+        "category_id": category.json()["id"],
+        "unit_price": 15.00
+    })
+    
+    # 3. Add stock entry: +100 units
+    client.post("/api/v1/inventory/entry", json={
+        "product_id": product.json()["id"],
+        "quantity": 100,
+        "reason": "PURCHASE"
+    })
+    
+    # 4. Verify product.current_stock = 100
+    p = client.get(f"/api/v1/products/{product.json()['id']}")
+    assert p.json()["current_stock"] == 100
+    
+    # 5. Create sale: 5 units of Coca Cola
+    sale = client.post("/api/v1/sales", json={
+        "items": [{"product_id": product.json()["id"], "quantity": 5}]
+    })
+    
+    # 6. Verify product.current_stock = 95
+    p = client.get(f"/api/v1/products/{product.json()['id']}")
+    assert p.json()["current_stock"] == 95
+    
+    # 7. Verify inventory_movement created
+    movements = client.get(f"/api/v1/inventory/movements/{product.json()['id']}")
+    assert len(movements.json()) >= 2  # Entry + Sale exit
+    
+    # 8. Cancel sale
+    client.post(f"/api/v1/sales/{sale.json()['id']}/cancel")
+    
+    # 9. Verify product.current_stock = 100 (restored)
+    p = client.get(f"/api/v1/products/{product.json()['id']}")
+    assert p.json()["current_stock"] == 100
+    
+    # 10. Get low-stock products (should be empty for this product)
+    low_stock = client.get("/api/v1/products/low-stock")
+    assert product.json()["id"] not in [p["id"] for p in low_stock.json()]
+    
+    # 11. Create stock exit: 96 units
+    client.post("/api/v1/inventory/exit", json={
+        "product_id": product.json()["id"],
+        "quantity": 96,
+        "reason": "DAMAGE"
+    })
+    
+    # 12. Get low-stock products (should include Coca Cola)
+    low_stock = client.get("/api/v1/products/low-stock")
+    assert product.json()["id"] in [p["id"] for p in low_stock.json()]
 ```
 
 ---
@@ -825,49 +1197,67 @@ M6: Error Handling (parallel with M1)
 ### New Files to Create
 
 ```
-BackEnd-CC/
-├── docker-compose.yml      # M0 - PostgreSQL + pgAdmin
+Backend-ComercialComarapa/
+├── docker-compose.yml          # M0 - PostgreSQL + pgAdmin ✅
+├── db/
+│   ├── schema.sql              # M0 ✅
+│   └── seeds/seed_data.sql     # M0 ✅
 │
-└── src/comercial_comarapa/
-    │
-    ├── db/
-    │   ├── database.py         # M0 - Unified DB client
-    │   ├── supabase.py         # M0 - Updated for dual mode
-    │   └── repositories/
-    │       ├── base.py             # M2
-    │       ├── category_repo.py    # M2
-    │       ├── product_repo.py     # M3
-    │       ├── inventory_repo.py   # M4
-    │       └── sale_repo.py        # M5
-    │
+├── src/comercial_comarapa/
+│   │
+│   ├── db/
+│   │   ├── database.py             # M0 - Unified DB client ✅
+│   │   ├── supabase.py             # M0 - Updated for dual mode ✅
+│   │   └── repositories/
+│   │       ├── base.py             # M2
+│   │       ├── category_repo.py    # M2
+│   │       ├── product_repo.py     # M3
+│   │       ├── inventory_repo.py   # M4
+│   │       └── sale_repo.py        # M5
+│   │
+│   ├── models/
+│   │   ├── common.py           # M1
+│   │   ├── category.py         # M1
+│   │   ├── product.py          # M1
+│   │   ├── inventory.py        # M1
+│   │   └── sale.py             # M1
+│   │
+│   ├── services/
+│   │   ├── category_service.py   # M2
+│   │   ├── product_service.py    # M3
+│   │   ├── inventory_service.py  # M4
+│   │   └── sale_service.py       # M5
+│   │
+│   ├── api/
+│   │   ├── deps.py             # M2
+│   │   └── v1/
+│   │       ├── router.py       # M2
+│   │       ├── categories.py   # M2
+│   │       ├── products.py     # M3
+│   │       ├── inventory.py    # M4
+│   │       └── sales.py        # M5
+│   │
+│   └── core/
+│       ├── exceptions.py       # M6
+│       └── responses.py        # M6
+│
+└── tests/
+    ├── conftest.py             # Shared fixtures
+    ├── test_health.py          # M0 ✅
+    ├── test_errors.py          # M6
     ├── models/
-    │   ├── common.py           # M1
-    │   ├── category.py         # M1
-    │   ├── product.py          # M1
-    │   ├── inventory.py        # M1
-    │   └── sale.py             # M1
-    │
-    ├── services/
-    │   ├── category_service.py   # M2
-    │   ├── product_service.py    # M3
-    │   ├── inventory_service.py  # M4
-    │   └── sale_service.py       # M5
-    │
-    ├── api/
-    │   ├── deps.py             # M2
-    │   └── v1/
-    │       ├── router.py       # M2
-    │       ├── categories.py   # M2
-    │       ├── products.py     # M3
-    │       ├── inventory.py    # M4
-    │       └── sales.py        # M5
-    │
-    └── core/
-        ├── exceptions.py       # M6
-        └── responses.py        # M6
+    │   ├── test_category.py    # M1
+    │   ├── test_product.py     # M1
+    │   ├── test_inventory.py   # M1
+    │   └── test_sale.py        # M1
+    └── api/
+        ├── test_categories.py  # M2
+        ├── test_products.py    # M3
+        ├── test_inventory.py   # M4
+        └── test_sales.py       # M5
 ```
 
-**Total new files:** 22
+**Total new files:** 22 source + 10 test = **32 files**
 
 ---
 
