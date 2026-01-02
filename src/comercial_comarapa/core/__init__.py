@@ -25,6 +25,7 @@ from comercial_comarapa.core.exceptions import (
     SaleAlreadyCancelledError,
     SaleNotFoundError,
     TransactionError,
+    UniqueConstraintViolationError,
     ValidationError,
 )
 from comercial_comarapa.core.logging import (
@@ -60,6 +61,7 @@ __all__ = [
     "SaleNotFoundError",
     "TableQueryProtocol",
     "TransactionError",
+    "UniqueConstraintViolationError",
     "ValidationError",
     "configure_logging",
     "get_logger",

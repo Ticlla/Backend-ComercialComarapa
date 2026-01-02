@@ -1,10 +1,10 @@
 # Phase 1 Implementation Plan
 ## Backend REST API - Comercial Comarapa
 
-**Document Version:** 1.1  
+**Document Version:** 1.2  
 **Created:** January 2, 2026  
 **Last Updated:** January 2, 2026  
-**Status:** M0 Completed - Ready for M1  
+**Status:** M1 Completed - Ready for M2  
 
 ---
 
@@ -13,12 +13,12 @@
 ```
 Phase 0: Project Setup ████████████████████ 100% ✅
 M0: Local Environment  ████████████████████ 100% ✅
-M1: Core Models        ░░░░░░░░░░░░░░░░░░░░   0% ⏳ NEXT
-M2: Categories API     ░░░░░░░░░░░░░░░░░░░░   0%
+M1: Core Models        ████████████████████ 100% ✅
+M2: Categories API     ░░░░░░░░░░░░░░░░░░░░   0% ⏳ NEXT
 M3: Products API       ░░░░░░░░░░░░░░░░░░░░   0%
 M4: Inventory API      ░░░░░░░░░░░░░░░░░░░░   0%
 M5: Sales API          ░░░░░░░░░░░░░░░░░░░░   0%
-M6: Error Handling     ░░░░░░░░░░░░░░░░░░░░   0%
+M6: Error Handling     ████████████████░░░░  80% ✅ (exceptions done)
 M7: Documentation      ░░░░░░░░░░░░░░░░░░░░   0%
 ```
 
@@ -33,16 +33,16 @@ This document provides a detailed, step-by-step implementation plan for Phase 1 
 | Milestone | Estimated Effort | Dependencies | Status |
 |-----------|------------------|--------------|--------|
 | **M0: Local Environment** | 1-2 hours | None | ✅ Done |
-| M1: Core Models | 2-3 hours | M0 | ⏳ Next |
-| M2: Categories API | 2-3 hours | M1 | ⬜ |
+| **M1: Core Models** | 2-3 hours | M0 | ✅ Done |
+| M2: Categories API | 2-3 hours | M1 | ⏳ Next |
 | M3: Products API | 4-5 hours | M1, M2 | ⬜ |
 | M4: Inventory API | 3-4 hours | M1, M3 | ⬜ |
 | M5: Sales API | 4-5 hours | M1, M3, M4 | ⬜ |
-| M6: Error Handling | 1-2 hours | Can be done in parallel | ⬜ |
+| **M6: Error Handling** | 1-2 hours | Can be done in parallel | ✅ ~80% |
 | M7: Documentation | 1-2 hours | All above | ⬜ |
 
 **Total Estimated:** 19-27 hours  
-**Completed:** ~3 hours (M0)
+**Completed:** ~7 hours (M0 + M1 + M6 partial)
 
 ---
 
@@ -113,7 +113,12 @@ Backend-ComercialComarapa/
     ├── config.py                   # Pydantic settings
     ├── main.py                     # FastAPI app + health endpoint
     └── db/
-        ├── database.py             # Unified dual-mode DB client
+        ├── __init__.py             # Package exports
+        ├── database.py             # Client factory & get_db()
+        ├── local_client.py         # LocalDatabaseClient, TableQuery
+        ├── pool.py                 # Connection pool management
+        ├── whitelist.py            # SQL injection prevention
+        ├── health.py               # Database health checks
         └── supabase.py             # Supabase client
 ```
 
@@ -229,9 +234,22 @@ DATABASE_URL=postgresql://postgres:postgres@localhost:5432/comercial_comarapa
               │                             │
               ▼                             ▼
      ┌─────────────────┐          ┌─────────────────┐
-     │   asyncpg /     │          │    Supabase     │
-     │   psycopg       │          │     Client      │
-     └─────────────────┘          └─────────────────┘
+     │ local_client.py │          │   supabase.py   │
+     │ ┌─────────────┐ │          │    Supabase     │
+     │ │PoolManager  │ │          │     Client      │
+     │ │ (pool.py)   │ │          └─────────────────┘
+     │ └─────────────┘ │
+     │ ┌─────────────┐ │
+     │ │ TableQuery  │ │
+     │ │ (Supabase-  │ │
+     │ │  like API)  │ │
+     │ └─────────────┘ │
+     │ ┌─────────────┐ │
+     │ │ whitelist.py│ │
+     │ │ (SQL inject │ │
+     │ │  prevention)│ │
+     │ └─────────────┘ │
+     └─────────────────┘
 ```
 
 ### Commands Reference
@@ -271,7 +289,7 @@ docker exec -it comercial_comarapa_db psql -U postgres -d comercial_comarapa
 
 ---
 
-## Milestone 1: Core Models (Pydantic Schemas)
+## Milestone 1: Core Models (Pydantic Schemas) ✅
 
 **Goal:** Create all Pydantic models for request/response validation.
 
@@ -279,23 +297,24 @@ docker exec -it comercial_comarapa_db psql -U postgres -d comercial_comarapa
 
 | # | Task | File | Status |
 |---|------|------|--------|
-| 1.1 | Create common models (pagination, responses) | `models/common.py` | ⬜ |
-| 1.2 | Create Category schemas | `models/category.py` | ⬜ |
-| 1.3 | Create Product schemas | `models/product.py` | ⬜ |
-| 1.4 | Create Inventory Movement schemas | `models/inventory.py` | ⬜ |
-| 1.5 | Create Sale schemas | `models/sale.py` | ⬜ |
-| 1.6 | Export all models in `__init__.py` | `models/__init__.py` | ⬜ |
+| 1.1 | Create common models (pagination, responses) | `models/common.py` | ✅ |
+| 1.2 | Create Category schemas | `models/category.py` | ✅ |
+| 1.3 | Create Product schemas | `models/product.py` | ✅ |
+| 1.4 | Create Inventory Movement schemas | `models/inventory.py` | ✅ |
+| 1.5 | Create Sale schemas | `models/sale.py` | ✅ |
+| 1.6 | Create shared validators | `models/validators.py` | ✅ |
+| 1.7 | Export all models in `__init__.py` | `models/__init__.py` | ✅ |
 
 ### Tests
 
 | # | Test | File | Status |
 |---|------|------|--------|
-| 1.T1 | Test Category model validation | `tests/models/test_category.py` | ⬜ |
-| 1.T2 | Test Product model validation | `tests/models/test_product.py` | ⬜ |
-| 1.T3 | Test Inventory model validation | `tests/models/test_inventory.py` | ⬜ |
-| 1.T4 | Test Sale model validation | `tests/models/test_sale.py` | ⬜ |
-| 1.T5 | Run `hatch run lint` | - | ⬜ |
-| 1.T6 | Run `hatch run test` | - | ⬜ |
+| 1.T1 | Test Category model validation | `tests/models/test_category.py` | ✅ (9 tests) |
+| 1.T2 | Test Product model validation | `tests/models/test_product.py` | ✅ (16 tests) |
+| 1.T3 | Test Inventory model validation | `tests/models/test_inventory.py` | ✅ (12 tests) |
+| 1.T4 | Test Sale model validation | `tests/models/test_sale.py` | ✅ (15 tests) |
+| 1.T5 | Run `hatch run lint` | - | ✅ |
+| 1.T6 | Run `hatch run test` | - | ✅ (54 tests passing) |
 
 ### Test Cases (M1)
 
@@ -324,7 +343,7 @@ def test_product_filter_defaults():
     """Filter defaults to is_active=True"""
 ```
 
-### Deliverables
+### Deliverables ✅
 
 ```
 src/comercial_comarapa/models/
@@ -333,7 +352,8 @@ src/comercial_comarapa/models/
 ├── category.py         # CategoryCreate, CategoryUpdate, CategoryResponse
 ├── product.py          # ProductCreate, ProductUpdate, ProductResponse, ProductFilter
 ├── inventory.py        # StockEntry, StockExit, MovementResponse, MovementType
-└── sale.py             # SaleCreate, SaleItemCreate, SaleResponse, SaleStatus
+├── sale.py             # SaleCreate, SaleItemCreate, SaleResponse, SaleStatus
+└── validators.py       # Shared validation utilities
 ```
 
 ### Model Specifications
@@ -905,7 +925,7 @@ class TestSalesAPI:
 
 ---
 
-## Milestone 6: Error Handling
+## Milestone 6: Error Handling (Partial ✅)
 
 **Goal:** Implement consistent error responses.
 
@@ -913,10 +933,12 @@ class TestSalesAPI:
 
 | # | Task | File | Status |
 |---|------|------|--------|
-| 6.1 | Create custom exceptions | `core/exceptions.py` | ⬜ |
-| 6.2 | Create exception handlers | `core/exceptions.py` | ⬜ |
-| 6.3 | Register handlers in main.py | `main.py` | ⬜ |
+| 6.1 | Create custom exceptions | `core/exceptions.py` | ✅ |
+| 6.2 | Create exception handlers | `core/exception_handlers.py` | ✅ |
+| 6.3 | Register handlers in main.py | `main.py` | ✅ |
 | 6.4 | Create response helpers | `core/responses.py` | ⬜ |
+| 6.5 | Create logging configuration | `core/logging.py` | ✅ |
+| 6.6 | Create database protocols | `core/protocols.py` | ✅ |
 
 ### Tests
 
@@ -1198,7 +1220,7 @@ def test_complete_sale_flow(client):
 
 ```
 Backend-ComercialComarapa/
-├── docker-compose.yml          # M0 - PostgreSQL + pgAdmin ✅
+├── docker-compose.yml          # M0 ✅
 ├── db/
 │   ├── schema.sql              # M0 ✅
 │   └── seeds/seed_data.sql     # M0 ✅
@@ -1206,21 +1228,28 @@ Backend-ComercialComarapa/
 ├── src/comercial_comarapa/
 │   │
 │   ├── db/
-│   │   ├── database.py             # M0 - Unified DB client ✅
-│   │   ├── supabase.py             # M0 - Updated for dual mode ✅
+│   │   ├── __init__.py             # M0 ✅
+│   │   ├── database.py             # M0 ✅ (factory & exports)
+│   │   ├── local_client.py         # M0 ✅ (LocalDatabaseClient, TableQuery)
+│   │   ├── pool.py                 # M0 ✅ (connection pool)
+│   │   ├── whitelist.py            # M0 ✅ (SQL injection prevention)
+│   │   ├── health.py               # M0 ✅ (health checks)
+│   │   ├── supabase.py             # M0 ✅
 │   │   └── repositories/
-│   │       ├── base.py             # M2
-│   │       ├── category_repo.py    # M2
+│   │       ├── base.py             # M2 ✅
+│   │       ├── category.py         # M2 ✅
 │   │       ├── product_repo.py     # M3
 │   │       ├── inventory_repo.py   # M4
 │   │       └── sale_repo.py        # M5
 │   │
 │   ├── models/
-│   │   ├── common.py           # M1
-│   │   ├── category.py         # M1
-│   │   ├── product.py          # M1
-│   │   ├── inventory.py        # M1
-│   │   └── sale.py             # M1
+│   │   ├── __init__.py         # M1 ✅
+│   │   ├── common.py           # M1 ✅
+│   │   ├── category.py         # M1 ✅
+│   │   ├── product.py          # M1 ✅
+│   │   ├── inventory.py        # M1 ✅
+│   │   ├── sale.py             # M1 ✅
+│   │   └── validators.py       # M1 ✅
 │   │
 │   ├── services/
 │   │   ├── category_service.py   # M2
@@ -1238,18 +1267,24 @@ Backend-ComercialComarapa/
 │   │       └── sales.py        # M5
 │   │
 │   └── core/
-│       ├── exceptions.py       # M6
+│       ├── __init__.py         # M6 ✅
+│       ├── exceptions.py       # M6 ✅
+│       ├── exception_handlers.py # M6 ✅
+│       ├── logging.py          # M6 ✅
+│       ├── protocols.py        # M6 ✅
 │       └── responses.py        # M6
 │
 └── tests/
-    ├── conftest.py             # Shared fixtures
+    ├── __init__.py             # ✅
+    ├── conftest.py             # ✅
     ├── test_health.py          # M0 ✅
     ├── test_errors.py          # M6
     ├── models/
-    │   ├── test_category.py    # M1
-    │   ├── test_product.py     # M1
-    │   ├── test_inventory.py   # M1
-    │   └── test_sale.py        # M1
+    │   ├── __init__.py         # M1 ✅
+    │   ├── test_category.py    # M1 ✅
+    │   ├── test_product.py     # M1 ✅
+    │   ├── test_inventory.py   # M1 ✅
+    │   └── test_sale.py        # M1 ✅
     └── api/
         ├── test_categories.py  # M2
         ├── test_products.py    # M3
@@ -1257,7 +1292,7 @@ Backend-ComercialComarapa/
         └── test_sales.py       # M5
 ```
 
-**Total new files:** 22 source + 10 test = **32 files**
+**Progress:** 28 of 38 files created (**74%**)
 
 ---
 

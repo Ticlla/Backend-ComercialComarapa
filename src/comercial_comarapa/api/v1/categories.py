@@ -38,7 +38,7 @@ router = APIRouter(prefix="/categories", tags=["Categories"])
     summary="List all categories",
     description="Get a paginated list of all product categories.",
 )
-async def list_categories(
+def list_categories(
     service: Annotated[CategoryService, Depends(get_category_service)],
     page: Annotated[int, Query(ge=1, description="Page number")] = 1,
     page_size: Annotated[int, Query(ge=1, le=100, description="Items per page")] = 20,
@@ -58,7 +58,7 @@ async def list_categories(
         404: {"description": "Category not found"},
     },
 )
-async def get_category(
+def get_category(
     category_id: UUID,
     service: Annotated[CategoryService, Depends(get_category_service)],
 ) -> APIResponse[CategoryResponse]:
@@ -77,7 +77,7 @@ async def get_category(
         409: {"description": "Category name already exists"},
     },
 )
-async def create_category(
+def create_category(
     data: CategoryCreate,
     service: Annotated[CategoryService, Depends(get_category_service)],
 ) -> APIResponse[CategoryResponse]:
@@ -96,7 +96,7 @@ async def create_category(
         409: {"description": "Category name already exists"},
     },
 )
-async def update_category(
+def update_category(
     category_id: UUID,
     data: CategoryUpdate,
     service: Annotated[CategoryService, Depends(get_category_service)],
@@ -117,7 +117,7 @@ async def update_category(
         400: {"description": "Category has associated products"},
     },
 )
-async def delete_category(
+def delete_category(
     category_id: UUID,
     service: Annotated[CategoryService, Depends(get_category_service)],
 ) -> DeleteResponse:

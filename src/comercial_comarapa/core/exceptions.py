@@ -218,6 +218,26 @@ class DatabaseError(DomainError):
         super().__init__(message, details)
 
 
+class UniqueConstraintViolationError(DomainError):
+    """Raised when a unique constraint is violated in the database.
+
+    This maps PostgreSQL UniqueViolation errors to a user-friendly response.
+    """
+
+    code = "UNIQUE_CONSTRAINT_VIOLATION"
+    status_code = 409
+
+    def __init__(
+        self,
+        message: str = "A record with this value already exists",
+        constraint_name: str | None = None,
+        details: dict[str, Any] | None = None,
+    ):
+        if constraint_name and not details:
+            details = {"constraint": constraint_name}
+        super().__init__(message, details)
+
+
 class ConnectionError(DatabaseError):
     """Raised when database connection fails."""
 
