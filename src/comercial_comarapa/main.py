@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from comercial_comarapa import __version__
 from comercial_comarapa.config import settings
-from comercial_comarapa.db.supabase import check_supabase_connection
+from comercial_comarapa.db.database import check_db_connection
 
 
 @asynccontextmanager
@@ -26,6 +26,7 @@ async def lifespan(_app: FastAPI):
     # Startup
     print(f"[*] Starting {settings.app_name} v{__version__}")
     print(f"[*] Environment: {settings.app_env}")
+    print(f"[*] Database mode: {settings.database_mode}")
     print(f"[*] Debug mode: {settings.debug}")
 
     yield
@@ -78,7 +79,7 @@ def register_routes(app: FastAPI) -> None:
 
         Returns basic health status of the API and its dependencies.
         """
-        db_status = await check_supabase_connection()
+        db_status = await check_db_connection()
 
         return {
             "status": "healthy",

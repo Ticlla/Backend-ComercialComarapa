@@ -48,7 +48,15 @@ class Settings(BaseSettings):
     host: str = Field(default="0.0.0.0")
     port: int = Field(default=8000)
 
-    # Supabase
+    # Database Mode: "local" or "supabase"
+    database_mode: str = Field(default="local")
+
+    # Local PostgreSQL (when database_mode=local)
+    database_url: str = Field(
+        default="postgresql://postgres:postgres@localhost:5432/comercial_comarapa"
+    )
+
+    # Supabase (when database_mode=supabase)
     supabase_url: str = Field(default="")
     supabase_key: str = Field(default="")
     supabase_service_key: str = Field(default="")
@@ -70,6 +78,16 @@ class Settings(BaseSettings):
     def is_production(self) -> bool:
         """Check if running in production environment."""
         return self.app_env.lower() == "production"
+
+    @property
+    def is_local_db(self) -> bool:
+        """Check if using local PostgreSQL database."""
+        return self.database_mode.lower() == "local"
+
+    @property
+    def is_supabase_db(self) -> bool:
+        """Check if using Supabase cloud database."""
+        return self.database_mode.lower() == "supabase"
 
 
 @lru_cache
