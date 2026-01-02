@@ -1300,12 +1300,22 @@ Backend-ComercialComarapa/
 
 Phase 1 is complete when:
 
-- [x] All CRUD operations work via Swagger
-- [x] Products can be searched and filtered
-- [x] Low stock alerts work correctly
-- [x] Sales deduct inventory automatically
-- [x] Sale cancellation restores stock
-- [x] All endpoints return proper error responses
+- [ ] All CRUD operations work via Swagger
+- [ ] Products can be searched and filtered
+- [ ] Low stock alerts work correctly
+- [ ] Sales deduct inventory automatically
+- [ ] Sale cancellation restores stock
+- [x] All endpoints return proper error responses (core exceptions done)
 - [x] Ruff linting passes
 - [x] README updated with API info
+
+---
+
+## Document Revision History
+
+| Version | Date | Changes |
+|---------|------|---------|
+| 1.0 | 2026-01-02 | Initial implementation plan |
+| 1.1 | 2026-01-02 | Marked M0 as completed |
+| 1.2 | 2026-01-02 | Marked M1 as completed (54 tests passing), updated db/ module structure after refactoring, updated M6 status |
 
