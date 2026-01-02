@@ -1,0 +1,28 @@
+"""FastAPI dependencies for v1 API.
+
+This module provides dependency injection functions for services
+and other components used in API endpoints.
+
+Usage:
+    from comercial_comarapa.api.v1.deps import get_category_service
+
+    @router.get("/categories")
+    async def list_categories(
+        service: Annotated[CategoryService, Depends(get_category_service)]
+    ):
+        ...
+"""
+
+from comercial_comarapa.db.database import get_db
+from comercial_comarapa.services.category_service import CategoryService
+
+
+def get_category_service() -> CategoryService:
+    """Get CategoryService instance with database dependency.
+
+    Returns:
+        CategoryService instance.
+    """
+    db = get_db()
+    return CategoryService(db)
+

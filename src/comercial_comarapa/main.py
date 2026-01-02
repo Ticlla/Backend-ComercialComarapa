@@ -10,6 +10,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from comercial_comarapa import __version__
+from comercial_comarapa.api.v1.router import api_router
 from comercial_comarapa.config import settings
 from comercial_comarapa.core import register_exception_handlers
 from comercial_comarapa.core.logging import configure_logging, get_logger
@@ -116,7 +117,8 @@ def register_routes(app: FastAPI) -> None:
             "health": "/health",
         }
 
-    # Phase 1: API v1 routers will be registered here
+    # API v1 routers
+    app.include_router(api_router, prefix="/api/v1")
 
 
 # Create application instance
