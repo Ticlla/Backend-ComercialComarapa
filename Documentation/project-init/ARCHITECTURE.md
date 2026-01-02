@@ -61,15 +61,19 @@ The system follows a **Layered Architecture** pattern with clear separation of c
 │  └─────────────┘ └─────────────┘ └─────────────┘ └───────────┘  │
 └─────────────────────────────────────────────────────────────────┘
                                 │
-                                ▼ Supabase Client
+                                ▼ Database Client
 ┌─────────────────────────────────────────────────────────────────┐
 │                      DATABASE LAYER                             │
-│                   Supabase (PostgreSQL)                         │
+│           PostgreSQL (Local Docker / Supabase Cloud)            │
 │  ┌──────────┐ ┌──────────┐ ┌───────────────┐ ┌──────────────┐   │
 │  │ products │ │categories│ │inv_movements  │ │ sales/items  │   │
 │  └──────────┘ └──────────┘ └───────────────┘ └──────────────┘   │
 └─────────────────────────────────────────────────────────────────┘
 ```
+
+> **Database Modes:**
+> - **Local (Development):** PostgreSQL via Docker - fast, offline, free
+> - **Cloud (Production):** Supabase managed PostgreSQL
 
 ---
 
@@ -103,12 +107,15 @@ The system follows a **Layered Architecture** pattern with clear separation of c
                              │
                              │ PostgreSQL Protocol
                              ▼
-                    ┌─────────────────┐
-                    │    Supabase     │
-                    │  (PostgreSQL)   │
-                    │                 │
-                    │  Cloud Database │
-                    └─────────────────┘
+              ┌──────────────┴──────────────┐
+              │                             │
+              ▼                             ▼
+     ┌─────────────────┐          ┌─────────────────┐
+     │   PostgreSQL    │          │    Supabase     │
+     │    (Docker)     │          │  (PostgreSQL)   │
+     │                 │          │                 │
+     │  Local Dev DB   │          │  Cloud Database │
+     └─────────────────┘          └─────────────────┘
 ```
 
 ### Container Diagram (C4 Level 2)
@@ -165,9 +172,19 @@ The system follows a **Layered Architecture** pattern with clear separation of c
 | FastAPI | 0.109+ | Web framework |
 | Pydantic | 2.5+ | Data validation & serialization |
 | pydantic-settings | 2.1+ | Configuration management |
-| supabase-py | 2.3+ | Supabase client |
+| supabase-py | 2.3+ | Supabase client (cloud mode) |
+| psycopg | 3.1+ | PostgreSQL driver (local mode) |
 | httpx | 0.26+ | HTTP client (async) |
 | python-dotenv | 1.0+ | Environment variables |
+
+### Database Infrastructure
+
+| Component | Version | Purpose |
+|-----------|---------|---------|
+| PostgreSQL | 16 | Database engine |
+| Docker | Latest | Local development containers |
+| Docker Compose | Latest | Multi-container orchestration |
+| pgAdmin | Latest | Database administration UI |
 
 ### Development Tools
 
@@ -577,7 +594,7 @@ HTTP Request
      ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                   Dependency Injection                      │
-│  • Get Supabase client                                      │
+│  • Get database client (local or Supabase)                  │
 │  • Instantiate repositories                                 │
 │  • Instantiate services                                     │
 └─────────────────────────────────────────────────────────────┘
@@ -665,6 +682,47 @@ HTTP Response (JSON)
 | sales | idx_sales_number | sale_number | Invoice lookup |
 | sale_items | idx_sale_items_sale | sale_id | Sale details |
 
+### 8.3 Local Development Infrastructure (Docker)
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Docker Compose                           │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │            postgres (Port 5432)                      │   │
+│  │  ┌─────────────────────────────────────────────┐    │   │
+│  │  │  PostgreSQL 16 Alpine                       │    │   │
+│  │  │  • Database: comercial_comarapa             │    │   │
+│  │  │  • User: postgres                           │    │   │
+│  │  │  • Auto-init: schema.sql                    │    │   │
+│  │  └─────────────────────────────────────────────┘    │   │
+│  │  Volume: postgres_data                              │   │
+│  └─────────────────────────────────────────────────────┘   │
+│                                                             │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │            pgadmin (Port 5050)                       │   │
+│  │  ┌─────────────────────────────────────────────┐    │   │
+│  │  │  pgAdmin 4                                   │    │   │
+│  │  │  • URL: http://localhost:5050               │    │   │
+│  │  │  • Email: admin@local.com                   │    │   │
+│  │  │  • Password: admin                          │    │   │
+│  │  └─────────────────────────────────────────────┘    │   │
+│  └─────────────────────────────────────────────────────┘   │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Docker Commands:**
+
+| Command | Description |
+|---------|-------------|
+| `docker-compose up -d` | Start containers in background |
+| `docker-compose down` | Stop containers |
+| `docker-compose down -v` | Stop and delete data (reset) |
+| `docker-compose logs -f postgres` | View database logs |
+| `docker exec -it comercial_comarapa_db psql -U postgres` | Access PostgreSQL CLI |
+
 ---
 
 ## 9. Design Patterns
@@ -676,9 +734,10 @@ HTTP Response (JSON)
 | **Repository** | `db/repositories/` | Abstract data access |
 | **Service Layer** | `services/` | Encapsulate business logic |
 | **Dependency Injection** | `api/deps.py` | Decouple components |
-| **Factory** | `main.py` | Create FastAPI app |
+| **Factory** | `main.py`, `db/database.py` | Create FastAPI app, DB client |
 | **DTO (Data Transfer Object)** | `models/` | Request/Response schemas |
-| **Singleton** | `db/supabase.py` | Single DB client instance |
+| **Singleton** | `db/database.py` | Single DB client instance |
+| **Strategy** | `db/database.py` | Switch between local/Supabase |
 
 ### 9.2 Dependency Injection Flow
 
@@ -686,18 +745,18 @@ HTTP Response (JSON)
 # api/deps.py
 
 from functools import lru_cache
-from comercial_comarapa.db.supabase import get_supabase_client
+from comercial_comarapa.db.database import get_db_client
 from comercial_comarapa.db.repositories import ProductRepository
 from comercial_comarapa.services import ProductService
 
 @lru_cache
-def get_supabase():
-    """Singleton Supabase client."""
-    return get_supabase_client()
+def get_database():
+    """Singleton database client (local or Supabase based on config)."""
+    return get_db_client()
 
-def get_product_repo(client = Depends(get_supabase)):
+def get_product_repo(db = Depends(get_database)):
     """Factory for ProductRepository."""
-    return ProductRepository(client)
+    return ProductRepository(db)
 
 def get_product_service(repo = Depends(get_product_repo)):
     """Factory for ProductService."""
@@ -710,6 +769,9 @@ async def list_products(
 ):
     return await service.get_all()
 ```
+
+> **Note:** The `get_db_client()` function returns the appropriate client
+> based on `DATABASE_MODE` setting (local PostgreSQL or Supabase).
 
 ---
 
@@ -775,19 +837,40 @@ async def api_exception_handler(request, exc: BaseAPIException):
 ### 11.1 Environment Hierarchy
 
 ```
-Production:   .env.production   (deployed)
-Staging:      .env.staging      (pre-production)
-Development:  .env              (local development)
-Testing:      .env.test         (pytest)
+Production:   .env.production   (deployed - Supabase Cloud)
+Staging:      .env.staging      (pre-production - Supabase Cloud)
+Development:  .env              (local development - Docker PostgreSQL)
+Testing:      .env.test         (pytest - Docker PostgreSQL)
 ```
 
-### 11.2 Configuration Loading
+### 11.2 Database Mode Selection
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    DATABASE_MODE                            │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  DATABASE_MODE=local                                        │
+│  └── Uses: DATABASE_URL (PostgreSQL connection string)     │
+│  └── Driver: psycopg (direct PostgreSQL)                   │
+│  └── Use case: Local development with Docker               │
+│                                                             │
+│  DATABASE_MODE=supabase                                     │
+│  └── Uses: SUPABASE_URL + SUPABASE_KEY                     │
+│  └── Driver: supabase-py (REST API)                        │
+│  └── Use case: Staging/Production with Supabase Cloud      │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 11.3 Configuration Loading
 
 ```
 1. Load from .env file (python-dotenv)
 2. Override with system environment variables
 3. Validate with Pydantic Settings
-4. Access via settings singleton
+4. Select database client based on DATABASE_MODE
+5. Access via settings singleton
 ```
 
 ### 11.3 Hatch Environment Configuration
@@ -836,9 +919,15 @@ check = ["lint", "test"]
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                      DATABASE LAYER                         │
+│  Local Mode:                                                │
+│  • PostgreSQL user/password authentication                  │
+│  • Docker network isolation                                 │
+│  • Parameterized queries (psycopg)                         │
+│                                                             │
+│  Supabase Mode:                                            │
 │  • Supabase service role key (server-side only)            │
 │  • Row Level Security (future)                             │
-│  • Parameterized queries                                    │
+│  • API key authentication                                   │
 └─────────────────────────────────────────────────────────────┘
 ```
 
