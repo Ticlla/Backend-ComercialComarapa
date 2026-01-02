@@ -8,8 +8,6 @@
 #   Logs:    docker-compose logs -f postgres
 # =============================================================================
 
-version: '3.8'
-
 services:
   # ---------------------------------------------------------------------------
   # PostgreSQL Database
@@ -27,8 +25,9 @@ services:
     volumes:
       # Persist data
       - postgres_data:/var/lib/postgresql/data
-      # Auto-execute schema on first run
+      # Auto-execute schema and seeds on first run
       - ./db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./db/seeds/seed_data.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d comercial_comarapa"]
       interval: 10s
