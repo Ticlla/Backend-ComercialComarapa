@@ -873,26 +873,58 @@ Testing:      .env.test         (pytest - Docker PostgreSQL)
 5. Access via settings singleton
 ```
 
-### 11.3 Hatch Environment Configuration
+### 11.4 Hatch Multi-Environment Configuration
 
 ```toml
-# pyproject.toml
+# pyproject.toml - Environment-specific configurations
 
+# Default environment (shared tools)
 [tool.hatch.envs.default]
-dependencies = [
-    "ruff",
-    "pytest",
-    "pytest-asyncio",
-    "pytest-cov",
-]
+dependencies = ["ruff", "pytest", "pytest-asyncio", "pytest-cov"]
 
 [tool.hatch.envs.default.scripts]
-dev = "uvicorn comercial_comarapa.main:app --reload"
-test = "pytest tests/ -v"
 lint = "ruff check src/"
 format = "ruff format src/"
-check = ["lint", "test"]
+test = "pytest tests/ -v"
+
+# Development environment (Docker PostgreSQL)
+[tool.hatch.envs.dev]
+env-file = ".env.development"
+
+[tool.hatch.envs.dev.scripts]
+start = "uvicorn comercial_comarapa.main:app --reload --host 0.0.0.0 --port 8000"
+
+# Staging environment (Supabase staging)
+[tool.hatch.envs.stage]
+env-file = ".env.staging"
+
+[tool.hatch.envs.stage.scripts]
+start = "uvicorn comercial_comarapa.main:app --host 0.0.0.0 --port 8000"
+
+# Production environment (Supabase production)
+[tool.hatch.envs.prod]
+env-file = ".env.production"
+
+[tool.hatch.envs.prod.scripts]
+start = "uvicorn comercial_comarapa.main:app --host 0.0.0.0 --port 8000 --workers 4"
 ```
+
+### 11.5 Environment Files Structure
+
+```
+Backend-ComercialComarapa/
+├── .env.development     # Local Docker (committed - safe defaults)
+├── .env.staging         # Supabase staging (committed - team config)
+├── .env.production      # Supabase production (committed - prod config)
+├── .env.example         # Template reference
+└── .env.*.local         # Personal overrides (git-ignored)
+```
+
+| Command | Loads | Database |
+|---------|-------|----------|
+| `hatch run dev:start` | `.env.development` | Local Docker PostgreSQL |
+| `hatch run stage:start` | `.env.staging` | Supabase Staging |
+| `hatch run prod:start` | `.env.production` | Supabase Production |
 
 ---
 
@@ -933,11 +965,15 @@ check = ["lint", "test"]
 
 ### 12.2 Credential Management
 
-| Credential | Storage | Access |
-|------------|---------|--------|
-| SUPABASE_URL | .env file | Environment variable |
-| SUPABASE_KEY | .env file | Environment variable |
-| JWT_SECRET | .env file | Environment variable |
+| Credential | Environment | Storage |
+|------------|-------------|---------|
+| DATABASE_URL | Development | `.env.development` |
+| SUPABASE_URL | Staging/Prod | `.env.staging`, `.env.production` |
+| SUPABASE_KEY | Staging/Prod | `.env.staging`, `.env.production` |
+| SUPABASE_SERVICE_KEY | Staging/Prod | `.env.staging`, `.env.production` |
+
+> **Note:** For sensitive credentials, use `.env.*.local` files (git-ignored) 
+> or set environment variables directly in your deployment platform.
 
 ### 12.3 CORS Configuration
 

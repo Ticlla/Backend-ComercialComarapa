@@ -1,21 +1,21 @@
 # Comercial Comarapa - Backend API
 
-REST API for inventory management system built with FastAPI and Supabase.
+REST API for inventory management system built with FastAPI and PostgreSQL.
 
 ## 🚀 Quick Start
 
 ### Prerequisites
 
-- Python 3.12 or higher
+- Python 3.9 or higher
 - [Hatch](https://hatch.pypa.io/) package manager
-- [Supabase](https://supabase.com/) account and project
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (for local development)
 
 ### Installation
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/comercialcomarapa/backend-cc.git
-   cd backend-cc
+   git clone https://github.com/Ticlla/Backend-ComercialComarapa.git
+   cd Backend-ComercialComarapa
    ```
 
 2. **Install Hatch** (if not already installed)
@@ -23,36 +23,33 @@ REST API for inventory management system built with FastAPI and Supabase.
    pip install hatch
    ```
 
-3. **Create environment and install dependencies**
+3. **Start Docker containers** (PostgreSQL + pgAdmin)
    ```bash
-   hatch env create
+   docker-compose up -d
    ```
 
-4. **Configure environment variables**
+4. **Run the development server**
    ```bash
-   # Copy the example file
-   cp .env.example .env
-
-   # Edit .env with your Supabase credentials
-   # Get these from: https://supabase.com/dashboard/project/_/settings/api
+   hatch run dev:start
    ```
 
-5. **Run the development server**
-   ```bash
-   hatch run dev
-   ```
-
-6. **Open API documentation**
+5. **Open API documentation**
    - Swagger UI: http://localhost:8000/docs
    - ReDoc: http://localhost:8000/redoc
+   - pgAdmin: http://localhost:5050 (admin@comercialcomarapa.com / admin)
 
 ## 📁 Project Structure
 
 ```
-BackEnd-CC/
+Backend-ComercialComarapa/
 ├── pyproject.toml              # Hatch configuration & dependencies
+├── docker-compose.yml          # Local PostgreSQL + pgAdmin
 ├── README.md                   # This file
-├── .env.example                # Environment template
+│
+├── .env.development            # Development config (Docker)
+├── .env.staging                # Staging config (Supabase)
+├── .env.production             # Production config (Supabase)
+├── .env.example                # Template reference
 │
 ├── src/
 │   └── comercial_comarapa/     # Main package
@@ -62,6 +59,8 @@ BackEnd-CC/
 │       ├── models/             # Pydantic schemas
 │       ├── services/           # Business logic
 │       ├── db/                 # Database layer
+│       │   ├── database.py     # Dual-mode client (local/Supabase)
+│       │   └── supabase.py     # Supabase client
 │       └── core/               # Utilities
 │
 ├── tests/                      # Test suite
@@ -70,10 +69,18 @@ BackEnd-CC/
 
 ## 🛠️ Development Commands
 
+### Environment-Specific Commands
+
+| Command | Environment | Description |
+|---------|-------------|-------------|
+| `hatch run dev:start` | Development | Local Docker PostgreSQL (hot-reload) |
+| `hatch run stage:start` | Staging | Supabase staging project |
+| `hatch run prod:start` | Production | Supabase production (4 workers) |
+
+### Shared Tools
+
 | Command | Description |
 |---------|-------------|
-| `hatch run dev` | Start development server with auto-reload |
-| `hatch run start` | Start production server |
 | `hatch run lint` | Run Ruff linter |
 | `hatch run format` | Format code with Ruff |
 | `hatch run fix` | Auto-fix linting issues |
@@ -81,25 +88,38 @@ BackEnd-CC/
 | `hatch run test-cov` | Run tests with coverage report |
 | `hatch shell` | Activate virtual environment |
 
+### Docker Commands
+
+| Command | Description |
+|---------|-------------|
+| `docker-compose up -d` | Start PostgreSQL + pgAdmin |
+| `docker-compose down` | Stop containers |
+| `docker-compose logs -f db` | View database logs |
+
 ## 🔧 Configuration
 
-All configuration is done via environment variables. See `.env.example` for available options.
+Configuration is managed via environment files. Each Hatch environment loads its corresponding `.env.*` file.
 
-### Required Variables
+### Environment Files
 
-| Variable | Description |
-|----------|-------------|
-| `SUPABASE_URL` | Your Supabase project URL |
-| `SUPABASE_KEY` | Supabase anonymous key |
+| File | Purpose | DATABASE_MODE |
+|------|---------|---------------|
+| `.env.development` | Local Docker PostgreSQL | `local` |
+| `.env.staging` | Supabase staging project | `supabase` |
+| `.env.production` | Supabase production | `supabase` |
+| `.env.*.local` | Personal overrides (git-ignored) | - |
 
-### Optional Variables
+### Key Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `APP_ENV` | `development` | Environment name |
-| `DEBUG` | `true` | Enable debug mode |
-| `PORT` | `8000` | Server port |
-| `CORS_ORIGINS` | `localhost:3000,5173` | Allowed CORS origins |
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `DATABASE_MODE` | Database backend | `local` or `supabase` |
+| `DATABASE_URL` | PostgreSQL connection (local mode) | `postgresql://...` |
+| `SUPABASE_URL` | Supabase project URL (supabase mode) | `https://xxx.supabase.co` |
+| `SUPABASE_KEY` | Supabase anon key (supabase mode) | `eyJ...` |
+| `APP_ENV` | Environment name | `development` |
+| `DEBUG` | Enable debug mode | `true` / `false` |
+| `CORS_ORIGINS` | Allowed CORS origins | `http://localhost:3000` |
 
 ## 📚 API Endpoints
 
@@ -124,9 +144,26 @@ All configuration is done via environment variables. See `.env.example` for avai
 
 ## 🗄️ Database Setup
 
-1. Create a new Supabase project
-2. Run the schema from `Documentation/database/schema.sql`
-3. Get your API keys from project settings
+### Local Development (Docker)
+
+```bash
+# Start containers
+docker-compose up -d
+
+# Verify database is running
+docker-compose ps
+
+# Access pgAdmin at http://localhost:5050
+# Email: admin@comercialcomarapa.com
+# Password: admin
+```
+
+### Supabase (Staging/Production)
+
+1. Create a Supabase project at https://supabase.com
+2. Run the schema from `Documentation/database/schema.sql` in SQL Editor
+3. Copy API keys from Project Settings > API
+4. Update `.env.staging` or `.env.production`
 
 ## 🧪 Testing
 

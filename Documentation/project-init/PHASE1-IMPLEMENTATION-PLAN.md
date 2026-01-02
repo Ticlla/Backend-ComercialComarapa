@@ -33,10 +33,10 @@ This document provides a detailed, step-by-step implementation plan for Phase 1 
 Before starting Phase 1:
 
 - [x] Phase 0 completed
-- [ ] Docker Desktop installed
-- [ ] Local PostgreSQL running via Docker
-- [ ] Database schema executed locally
-- [ ] `.env` file configured for local development
+- [x] Docker Desktop installed
+- [x] Local PostgreSQL running via Docker
+- [x] Database schema executed locally
+- [x] Multi-environment configuration (dev/stage/prod)
 
 ---
 
@@ -56,25 +56,37 @@ Before starting Phase 1:
 
 | # | Task | Description | Status |
 |---|------|-------------|--------|
-| 0.1 | Install Docker Desktop | Download and install Docker | ⬜ |
-| 0.2 | Create docker-compose.yml | PostgreSQL + pgAdmin config | ⬜ |
-| 0.3 | Start local database | `docker-compose up -d` | ⬜ |
-| 0.4 | Execute database schema | Run `schema.sql` in local DB | ⬜ |
-| 0.5 | Update database client | Support both local and Supabase | ⬜ |
-| 0.6 | Configure .env for local | Local PostgreSQL credentials | ⬜ |
-| 0.7 | Test database connection | Verify health endpoint | ⬜ |
+| 0.1 | Install Docker Desktop | Download and install Docker | ✅ |
+| 0.2 | Create docker-compose.yml | PostgreSQL + pgAdmin config | ✅ |
+| 0.3 | Start local database | `docker-compose up -d` | ✅ |
+| 0.4 | Execute database schema | Run `schema.sql` in local DB | ✅ |
+| 0.5 | Update database client | Support both local and Supabase | ✅ |
+| 0.6 | Multi-environment config | `.env.development`, `.env.staging`, `.env.production` | ✅ |
+| 0.7 | Test database connection | Verify health endpoint | ✅ |
+| 0.8 | Hatch environments | Configure `hatch run dev/stage/prod:start` | ✅ |
 
-### Deliverables
+### Deliverables ✅
 
 ```
-BackEnd-CC/
-├── docker-compose.yml      # PostgreSQL + pgAdmin
-├── .env                    # Local config (git-ignored)
-├── .env.example            # Updated with local options
+Backend-ComercialComarapa/
+├── docker-compose.yml          # PostgreSQL + pgAdmin
+├── .env.development            # Local Docker config
+├── .env.staging                # Supabase staging config
+├── .env.production             # Supabase production config
+├── .env.example                # Template reference
+├── pyproject.toml              # Hatch multi-environment config
 └── src/comercial_comarapa/
     └── db/
-        ├── supabase.py     # Renamed/updated
-        └── database.py     # New: unified DB client
+        ├── supabase.py         # Supabase client
+        └── database.py         # Unified dual-mode DB client
+```
+
+### Commands Available
+
+```bash
+hatch run dev:start     # Development (Docker PostgreSQL)
+hatch run stage:start   # Staging (Supabase)
+hatch run prod:start    # Production (Supabase)
 ```
 
 ### Docker Compose Configuration
