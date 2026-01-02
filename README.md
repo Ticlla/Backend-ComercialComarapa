@@ -51,6 +51,11 @@ Backend-ComercialComarapa/
 ├── .env.production             # Production config (Supabase)
 ├── .env.example                # Template reference
 │
+├── db/                         # Database files
+│   ├── schema.sql              # Database schema
+│   ├── migrations/             # Future migrations
+│   └── seeds/                  # Sample data
+│
 ├── src/
 │   └── comercial_comarapa/     # Main package
 │       ├── main.py             # FastAPI application
@@ -161,7 +166,7 @@ docker-compose ps
 ### Supabase (Staging/Production)
 
 1. Create a Supabase project at https://supabase.com
-2. Run the schema from `Documentation/database/schema.sql` in SQL Editor
+2. Run the schema from `db/schema.sql` in SQL Editor
 3. Copy API keys from Project Settings > API
 4. Update `.env.staging` or `.env.production`
 
