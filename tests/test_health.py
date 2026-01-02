@@ -27,3 +27,4 @@ def test_health_endpoint():
     assert "timestamp" in data
     assert "database" in data
 
+

@@ -150,3 +150,4 @@ LIMIT 3;
 -- SELECT COUNT(*) FROM sales;       -- Should be 2
 -- SELECT * FROM v_low_stock_products;  -- Should show 2 products
 
+

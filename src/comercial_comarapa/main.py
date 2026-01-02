@@ -4,14 +4,14 @@ This module creates and configures the FastAPI application instance.
 """
 
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from comercial_comarapa import __version__
 from comercial_comarapa.config import settings
-from comercial_comarapa.db.database import check_db_connection
+from comercial_comarapa.db.database import check_db_connection, close_pool
 
 
 @asynccontextmanager
@@ -33,6 +33,9 @@ async def lifespan(_app: FastAPI):
 
     # Shutdown
     print(f"[*] Shutting down {settings.app_name}")
+    if settings.is_local_db:
+        close_pool()
+        print("[*] Database connection pool closed")
 
 
 def create_app() -> FastAPI:
@@ -83,7 +86,7 @@ def register_routes(app: FastAPI) -> None:
 
         return {
             "status": "healthy",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "version": __version__,
             "environment": settings.app_env,
             "database": db_status,

@@ -11,7 +11,7 @@ version = "0.1.0"
 description = "REST API for inventory management system - Comercial Comarapa"
 readme = "README.md"
 license = "MIT"
-requires-python = ">=3.9"
+requires-python = ">=3.12"
 authors = [
     { name = "Comercial Comarapa", email = "dev@comercialcomarapa.com" }
 ]
@@ -37,7 +37,7 @@ dependencies = [
     "pydantic>=2.10.0",
     "pydantic-settings>=2.6.0",
     "supabase>=2.10.0",
-    "psycopg[binary]>=3.1.0",
+    "psycopg[binary,pool]>=3.1.0",
     "python-dotenv>=1.0.0",
     "httpx>=0.28.0",
 ]
@@ -73,8 +73,7 @@ packages = ["src/comercial_comarapa"]
 # -----------------------------------------------------------------------------
 [tool.hatch.envs.default]
 type = "virtual"
-path = ".venv"
-python = "3.9"
+python = "3.12"
 dependencies = [
     "ruff>=0.8.0",
     "pytest>=8.3.0",
@@ -95,8 +94,7 @@ test-cov = "pytest tests/ -v --cov=src/comercial_comarapa --cov-report=term-miss
 # -----------------------------------------------------------------------------
 [tool.hatch.envs.dev]
 type = "virtual"
-path = ".venv-dev"
-python = "3.9"
+python = "3.12"
 env-file = ".env.development"
 
 [tool.hatch.envs.dev.scripts]
@@ -108,8 +106,7 @@ server = "uvicorn comercial_comarapa.main:app --reload --host 0.0.0.0 --port 800
 # -----------------------------------------------------------------------------
 [tool.hatch.envs.stage]
 type = "virtual"
-path = ".venv-stage"
-python = "3.9"
+python = "3.12"
 env-file = ".env.staging"
 
 [tool.hatch.envs.stage.scripts]
@@ -121,8 +118,7 @@ server = "uvicorn comercial_comarapa.main:app --host 0.0.0.0 --port 8000"
 # -----------------------------------------------------------------------------
 [tool.hatch.envs.prod]
 type = "virtual"
-path = ".venv-prod"
-python = "3.9"
+python = "3.12"
 env-file = ".env.production"
 
 [tool.hatch.envs.prod.scripts]
@@ -133,7 +129,7 @@ server = "uvicorn comercial_comarapa.main:app --host 0.0.0.0 --port 8000 --worke
 # RUFF CONFIGURATION
 # =============================================================================
 [tool.ruff]
-target-version = "py39"
+target-version = "py312"
 line-length = 100
 src = ["src"]
 
