@@ -67,6 +67,10 @@ packages = ["src/comercial_comarapa"]
 # =============================================================================
 # HATCH ENVIRONMENTS
 # =============================================================================
+
+# -----------------------------------------------------------------------------
+# Default Environment (shared tools: lint, format, test)
+# -----------------------------------------------------------------------------
 [tool.hatch.envs.default]
 type = "virtual"
 path = ".venv"
@@ -79,14 +83,51 @@ dependencies = [
 ]
 
 [tool.hatch.envs.default.scripts]
-dev = "uvicorn comercial_comarapa.main:app --reload --host 0.0.0.0 --port 8000"
-start = "uvicorn comercial_comarapa.main:app --host 0.0.0.0 --port 8000"
 lint = "ruff check src/"
 format = "ruff format src/"
 fix = "ruff check src/ --fix"
 check = ["lint", "format --check"]
 test = "pytest tests/ -v"
 test-cov = "pytest tests/ -v --cov=src/comercial_comarapa --cov-report=term-missing"
+
+# -----------------------------------------------------------------------------
+# Development Environment (local Docker PostgreSQL)
+# -----------------------------------------------------------------------------
+[tool.hatch.envs.dev]
+type = "virtual"
+path = ".venv-dev"
+python = "3.9"
+env-file = ".env.development"
+
+[tool.hatch.envs.dev.scripts]
+start = "uvicorn comercial_comarapa.main:app --reload --host 0.0.0.0 --port 8000"
+server = "uvicorn comercial_comarapa.main:app --reload --host 0.0.0.0 --port 8000"
+
+# -----------------------------------------------------------------------------
+# Staging Environment (Supabase staging)
+# -----------------------------------------------------------------------------
+[tool.hatch.envs.stage]
+type = "virtual"
+path = ".venv-stage"
+python = "3.9"
+env-file = ".env.staging"
+
+[tool.hatch.envs.stage.scripts]
+start = "uvicorn comercial_comarapa.main:app --host 0.0.0.0 --port 8000"
+server = "uvicorn comercial_comarapa.main:app --host 0.0.0.0 --port 8000"
+
+# -----------------------------------------------------------------------------
+# Production Environment (Supabase production)
+# -----------------------------------------------------------------------------
+[tool.hatch.envs.prod]
+type = "virtual"
+path = ".venv-prod"
+python = "3.9"
+env-file = ".env.production"
+
+[tool.hatch.envs.prod.scripts]
+start = "uvicorn comercial_comarapa.main:app --host 0.0.0.0 --port 8000 --workers 4"
+server = "uvicorn comercial_comarapa.main:app --host 0.0.0.0 --port 8000 --workers 4"
 
 # =============================================================================
 # RUFF CONFIGURATION

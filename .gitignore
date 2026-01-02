@@ -5,13 +5,17 @@ __pycache__/
 
 # Virtual environments
 .venv/
+.venv-dev/
+.venv-stage/
+.venv-prod/
 venv/
 ENV/
 
-# Environment files
-.env
+# Environment files - local overrides only
 .env.local
 .env.*.local
+# Note: .env.* files are committed for team sharing
+# Use .env.*.local for personal overrides (git-ignored)
 
 # IDE
 .idea/
