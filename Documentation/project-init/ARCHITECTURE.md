@@ -300,7 +300,12 @@ BackEnd-CC/
 │       │   └── sale_service.py
 │       │
 │       ├── db/                    # Database Layer
-│       │   ├── __init__.py
+│       │   ├── __init__.py        # Package exports
+│       │   ├── database.py        # Client factory & get_db()
+│       │   ├── local_client.py    # LocalDatabaseClient, TableQuery
+│       │   ├── pool.py            # Connection pool management
+│       │   ├── whitelist.py       # SQL injection prevention
+│       │   ├── health.py          # Database health checks
 │       │   ├── supabase.py        # Supabase client singleton
 │       │   │
 │       │   └── repositories/      # Repository Pattern
@@ -736,7 +741,7 @@ HTTP Response (JSON)
 | **Dependency Injection** | `api/deps.py` | Decouple components |
 | **Factory** | `main.py`, `db/database.py` | Create FastAPI app, DB client |
 | **DTO (Data Transfer Object)** | `models/` | Request/Response schemas |
-| **Singleton** | `db/database.py` | Single DB client instance |
+| **Singleton** | `db/pool.py`, `db/local_client.py` | Connection pool, DB client |
 | **Strategy** | `db/database.py` | Switch between local/Supabase |
 
 ### 9.2 Dependency Injection Flow
@@ -1016,6 +1021,21 @@ comercial_comarapa/
 │       └── imports: models.product, db.repositories.product_repo, core.exceptions
 │
 ├── db/
+│   ├── database.py
+│   │   └── imports: config, local_client, pool, whitelist, health, supabase
+│   │
+│   ├── local_client.py
+│   │   └── imports: pool, whitelist, core.exceptions
+│   │
+│   ├── pool.py
+│   │   └── imports: config, psycopg_pool
+│   │
+│   ├── whitelist.py
+│   │   └── imports: core.exceptions
+│   │
+│   ├── health.py
+│   │   └── imports: config, database, supabase
+│   │
 │   ├── supabase.py
 │   │   └── imports: supabase, config
 │   │
@@ -1056,4 +1076,5 @@ comercial_comarapa/
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
 | 1.0 | 2026-01-02 | - | Initial architecture document |
+| 1.1 | 2026-01-02 | - | Updated db/ module structure after refactoring |
 

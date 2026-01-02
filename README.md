@@ -64,7 +64,11 @@ Backend-ComercialComarapa/
 │       ├── models/             # Pydantic schemas
 │       ├── services/           # Business logic
 │       ├── db/                 # Database layer
-│       │   ├── database.py     # Dual-mode client (local/Supabase)
+│       │   ├── database.py     # Client factory & get_db()
+│       │   ├── local_client.py # LocalDatabaseClient, TableQuery
+│       │   ├── pool.py         # Connection pool management
+│       │   ├── whitelist.py    # SQL injection prevention
+│       │   ├── health.py       # Database health checks
 │       │   └── supabase.py     # Supabase client
 │       └── core/               # Utilities
 │
