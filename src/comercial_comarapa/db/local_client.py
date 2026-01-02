@@ -284,6 +284,49 @@ class TableQuery:
                     {"table": self.table_name, "operation": "SELECT"},
                 ) from e
 
+    def count(self) -> int:
+        """Execute COUNT(*) query with current filters.
+
+        Returns:
+            Total count of matching records.
+
+        Raises:
+            DatabaseError: If query execution fails.
+        """
+        from psycopg import sql  # noqa: PLC0415
+
+        # Build COUNT query
+        query = sql.SQL("SELECT COUNT(*) FROM {}").format(
+            sql.Identifier(self.table_name),
+        )
+
+        params: list[Any] = []
+
+        # Apply filters (ignore LIMIT/OFFSET/ORDER for count)
+        if self._filters:
+            conditions = []
+            for col, op, val in self._filters:
+                conditions.append(
+                    sql.SQL("{} {} %s").format(sql.Identifier(col), sql.SQL(op))
+                )
+                params.append(val)
+            query = sql.SQL("{} WHERE {}").format(
+                query, sql.SQL(" AND ").join(conditions)
+            )
+
+        with self.client.get_connection() as conn:
+            try:
+                with conn.cursor() as cursor:
+                    cursor.execute(query, params)
+                    row = cursor.fetchone()
+                    return row[0] if row else 0
+            except Exception as e:
+                conn.rollback()
+                raise DatabaseError(
+                    f"Count query failed: {e}",
+                    {"table": self.table_name, "operation": "COUNT"},
+                ) from e
+
     def insert(self, data: dict) -> QueryResult:
         """Insert a record.
 

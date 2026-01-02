@@ -23,6 +23,7 @@ from comercial_comarapa.core.exceptions import (
 )
 from comercial_comarapa.core.logging import get_logger
 from comercial_comarapa.db.repositories.category import CategoryRepository
+from comercial_comarapa.db.repositories.product import ProductRepository
 
 if TYPE_CHECKING:
     from uuid import UUID
@@ -51,8 +52,8 @@ class CategoryService:
         Args:
             db: Database client.
         """
-        self.db = db
         self.repository = CategoryRepository(db)
+        self.product_repository = ProductRepository(db)
 
     def list_categories(
         self,
@@ -168,8 +169,8 @@ class CategoryService:
         if not self.repository.exists(category_id):
             raise CategoryNotFoundError(category_id)
 
-        # Check if category has products
-        if self._has_products(category_id):
+        # Check if category has products (uses ProductRepository)
+        if self.product_repository.has_products_for_category(category_id):
             raise InvalidOperationError(
                 f"Cannot delete category '{category_id}': it has associated products",
                 {"category_id": str(category_id)},
@@ -177,22 +178,3 @@ class CategoryService:
 
         self.repository.delete_or_raise(category_id)
         logger.info("category_deleted", category_id=str(category_id))
-
-    def _has_products(self, category_id: UUID) -> bool:
-        """Check if category has associated products.
-
-        Args:
-            category_id: Category UUID.
-
-        Returns:
-            True if category has products, False otherwise.
-        """
-        result = (
-            self.db.table("products")
-            .select("id")
-            .eq("category_id", str(category_id))
-            .eq("is_active", True)
-            .limit(1)
-            .execute()
-        )
-        return len(result.data or []) > 0

@@ -125,6 +125,14 @@ class TableQueryProtocol(Protocol):
         """
         ...
 
+    def count(self) -> int:
+        """Execute COUNT(*) query with current filters.
+
+        Returns:
+            Total count of matching records.
+        """
+        ...
+
     def insert(self, data: dict[str, Any]) -> QueryResultProtocol:
         """Insert a record.
 

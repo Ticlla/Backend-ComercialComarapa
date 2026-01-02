@@ -172,7 +172,7 @@ class BaseRepository[T: BaseModel, C: BaseModel, U: BaseModel]:
         return entities, pagination_meta
 
     def _count(self, filters: dict[str, Any] | None = None) -> int:
-        """Count entities matching filters.
+        """Count entities matching filters using optimized COUNT(*).
 
         Args:
             filters: Dictionary of column-value pairs to filter by.
@@ -180,7 +180,6 @@ class BaseRepository[T: BaseModel, C: BaseModel, U: BaseModel]:
         Returns:
             Count of matching entities.
         """
-        # Build count query
         query = self.db.table(self.table_name).select("id")
 
         if filters:
@@ -188,8 +187,8 @@ class BaseRepository[T: BaseModel, C: BaseModel, U: BaseModel]:
                 if value is not None:
                     query = query.eq(column, value)
 
-        result = query.execute()
-        return len(result.data or [])
+        # Use optimized count() method instead of fetching all rows
+        return query.count()
 
     def create(self, data: C) -> T:
         """Create a new entity.
