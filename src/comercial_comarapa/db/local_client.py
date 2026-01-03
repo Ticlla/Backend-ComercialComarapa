@@ -163,6 +163,23 @@ class TableQuery:
         self._filters.append((column, "<=", value))
         return self
 
+    def ilike(self, column: str, pattern: str) -> TableQuery:
+        """Add case-insensitive LIKE filter.
+
+        Args:
+            column: Column name to filter.
+            pattern: Pattern with % wildcards (e.g., '%search%').
+
+        Returns:
+            Self for chaining.
+
+        Raises:
+            ValidationError: If column is not in allowlist.
+        """
+        validate_identifier(column, ALLOWED_COLUMNS, "column")
+        self._filters.append((column, "ILIKE", pattern))
+        return self
+
     def limit(self, count: int) -> TableQuery:
         """Limit results."""
         self._limit = count

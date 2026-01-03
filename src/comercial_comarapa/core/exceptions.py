@@ -122,6 +122,19 @@ class ValidationError(DomainError):
         super().__init__(message, details)
 
 
+class InvalidPriceRangeError(ValidationError):
+    """Raised when min_price > max_price."""
+
+    code = "INVALID_PRICE_RANGE"
+
+    def __init__(self, min_price: float, max_price: float):
+        super().__init__(
+            f"min_price ({min_price}) cannot be greater than max_price ({max_price})",
+            field="price_range",
+            details={"min_price": min_price, "max_price": max_price},
+        )
+
+
 class DuplicateEntityError(ValidationError):
     """Raised when attempting to create a duplicate entity."""
 

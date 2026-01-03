@@ -424,3 +424,63 @@ class TestLowStockProducts:
         assert "data" in data
         assert isinstance(data["data"], list)
 
+
+class TestPriceRangeValidation:
+    """Tests for price range validation (B6 fix)."""
+
+    def test_valid_price_range(self, client: TestClient):
+        """Valid price range returns 200."""
+        response = client.get("/api/v1/products?min_price=10&max_price=100")
+        assert response.status_code == status.HTTP_200_OK
+
+    def test_invalid_price_range(self, client: TestClient):
+        """min_price > max_price returns 422."""
+        response = client.get("/api/v1/products?min_price=100&max_price=10")
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+    def test_invalid_price_range_error_format(self, client: TestClient):
+        """Invalid price range has correct error format."""
+        response = client.get("/api/v1/products?min_price=100&max_price=10")
+        data = response.json()
+
+        assert data["success"] is False
+        assert data["error"]["code"] == "INVALID_PRICE_RANGE"
+
+
+class TestCategoryValidation:
+    """Tests for category validation (B3 fix)."""
+
+    def test_create_product_invalid_category(
+        self, client: TestClient, sample_product_data: dict
+    ):
+        """Create with non-existent category returns 404."""
+        sample_product_data["category_id"] = str(uuid4())
+        response = client.post("/api/v1/products", json=sample_product_data)
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_create_product_invalid_category_error_format(
+        self, client: TestClient, sample_product_data: dict
+    ):
+        """Invalid category error has correct format."""
+        sample_product_data["category_id"] = str(uuid4())
+        response = client.post("/api/v1/products", json=sample_product_data)
+        data = response.json()
+
+        assert data["success"] is False
+        assert data["error"]["code"] == "CATEGORY_NOT_FOUND"
+
+    def test_update_product_invalid_category(
+        self, client: TestClient, sample_product_data: dict
+    ):
+        """Update with non-existent category returns 404."""
+        # Create product without category
+        create_response = client.post("/api/v1/products", json=sample_product_data)
+        product_id = create_response.json()["data"]["id"]
+
+        # Try to update with invalid category
+        response = client.put(
+            f"/api/v1/products/{product_id}",
+            json={"category_id": str(uuid4())},
+        )
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+

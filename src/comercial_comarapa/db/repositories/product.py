@@ -154,6 +154,46 @@ class ProductRepository(BaseRepository[ProductResponse, ProductCreate, ProductUp
 
         return [LowStockProduct.model_validate(row) for row in result.data or []]
 
+    def _apply_filters(
+        self,
+        query: Any,
+        category_id: UUID | None = None,
+        min_price: Decimal | None = None,
+        max_price: Decimal | None = None,
+        in_stock: bool | None = None,
+        is_active: bool = True,
+    ) -> Any:
+        """Apply common filters to a query (B5: extracted shared logic).
+
+        Args:
+            query: The query builder to apply filters to.
+            category_id: Filter by category.
+            min_price: Minimum unit price.
+            max_price: Maximum unit price.
+            in_stock: Filter by stock availability.
+            is_active: Filter by active status.
+
+        Returns:
+            Query with filters applied.
+        """
+        query = query.eq("is_active", is_active)
+
+        if category_id:
+            query = query.eq("category_id", str(category_id))
+
+        if min_price is not None:
+            query = query.gte("unit_price", float(min_price))
+
+        if max_price is not None:
+            query = query.lte("unit_price", float(max_price))
+
+        if in_stock is True:
+            query = query.gt("current_stock", 0)
+        elif in_stock is False:
+            query = query.eq("current_stock", 0)
+
+        return query
+
     def list_with_filters(
         self,
         pagination: PaginationParams | None = None,
@@ -183,32 +223,16 @@ class ProductRepository(BaseRepository[ProductResponse, ProductCreate, ProductUp
         if pagination is None:
             pagination = PaginationParams()
 
-        # Build filters dict
-        filters: dict[str, Any] = {"is_active": is_active}
-
-        if category_id:
-            filters["category_id"] = str(category_id)
-
-        # Build query
+        # Build query with shared filter logic
         query = self.db.table(self.table_name).select("*")
-
-        # Apply basic filters
-        for column, value in filters.items():
-            if value is not None:
-                query = query.eq(column, value)
-
-        # Apply price filters
-        if min_price is not None:
-            query = query.gte("unit_price", float(min_price))
-
-        if max_price is not None:
-            query = query.lte("unit_price", float(max_price))
-
-        # Apply in_stock filter
-        if in_stock is True:
-            query = query.gt("current_stock", 0)
-        elif in_stock is False:
-            query = query.eq("current_stock", 0)
+        query = self._apply_filters(
+            query,
+            category_id=category_id,
+            min_price=min_price,
+            max_price=max_price,
+            in_stock=in_stock,
+            is_active=is_active,
+        )
 
         # Apply ordering and pagination
         query = query.order("name")
@@ -231,7 +255,7 @@ class ProductRepository(BaseRepository[ProductResponse, ProductCreate, ProductUp
         # Parse results
         entities = [self.response_model.model_validate(row) for row in result.data or []]
 
-        # Get total count (need to rebuild query for count without pagination)
+        # Get total count using shared filter logic
         total_items = self._count_with_filters(
             category_id=category_id,
             min_price=min_price,
@@ -268,34 +292,24 @@ class ProductRepository(BaseRepository[ProductResponse, ProductCreate, ProductUp
         Returns:
             Count of matching products.
         """
-        query = self.db.table(self.table_name).select("id").eq("is_active", is_active)
-
-        if category_id:
-            query = query.eq("category_id", str(category_id))
-
-        if min_price is not None:
-            query = query.gte("unit_price", float(min_price))
-
-        if max_price is not None:
-            query = query.lte("unit_price", float(max_price))
-
-        if in_stock is True:
-            query = query.gt("current_stock", 0)
-        elif in_stock is False:
-            query = query.eq("current_stock", 0)
-
+        query = self.db.table(self.table_name).select("id")
+        query = self._apply_filters(
+            query,
+            category_id=category_id,
+            min_price=min_price,
+            max_price=max_price,
+            in_stock=in_stock,
+            is_active=is_active,
+        )
         return query.count()
 
-    def search(
+    def search_by_name(
         self,
         term: str,
         is_active: bool = True,
         limit: int = 20,
     ) -> list[ProductResponse]:
-        """Search products by name or SKU.
-
-        Note: This is a simplified search that fetches products and filters in Python.
-        For production, consider using PostgreSQL full-text search or ILIKE.
+        """Search products by name using database ILIKE.
 
         Args:
             term: Search term (case-insensitive).
@@ -309,29 +323,102 @@ class ProductRepository(BaseRepository[ProductResponse, ProductCreate, ProductUp
 
         start = time.perf_counter()
 
-        # Fetch active products and filter in Python
-        # Note: In production, use PostgreSQL ILIKE or full-text search
+        # Use ILIKE for database-level case-insensitive search
+        pattern = f"%{term}%"
         result = (
             self.db.table(self.table_name)
             .select("*")
             .eq("is_active", is_active)
+            .ilike("name", pattern)
             .order("name")
+            .limit(limit)
             .execute()
         )
 
-        term_lower = term.lower()
-        matches = []
-        for row in result.data or []:
-            name = row.get("name", "").lower()
-            sku = row.get("sku", "").lower()
-            if term_lower in name or term_lower in sku:
-                matches.append(self.response_model.model_validate(row))
-                if len(matches) >= limit:
+        duration_ms = (time.perf_counter() - start) * 1000
+        log_db_query("SEARCH_NAME", self.table_name, duration_ms, term=term)
+
+        return [self.response_model.model_validate(row) for row in result.data or []]
+
+    def search_by_sku(
+        self,
+        term: str,
+        is_active: bool = True,
+        limit: int = 20,
+    ) -> list[ProductResponse]:
+        """Search products by SKU using database ILIKE.
+
+        Args:
+            term: Search term (case-insensitive).
+            is_active: Filter by active status.
+            limit: Maximum results to return.
+
+        Returns:
+            List of matching products.
+        """
+        import time  # noqa: PLC0415
+
+        start = time.perf_counter()
+
+        pattern = f"%{term}%"
+        result = (
+            self.db.table(self.table_name)
+            .select("*")
+            .eq("is_active", is_active)
+            .ilike("sku", pattern)
+            .order("sku")
+            .limit(limit)
+            .execute()
+        )
+
+        duration_ms = (time.perf_counter() - start) * 1000
+        log_db_query("SEARCH_SKU", self.table_name, duration_ms, term=term)
+
+        return [self.response_model.model_validate(row) for row in result.data or []]
+
+    def search(
+        self,
+        term: str,
+        is_active: bool = True,
+        limit: int = 20,
+    ) -> list[ProductResponse]:
+        """Search products by name or SKU using database ILIKE.
+
+        Searches both name and SKU columns and combines results.
+
+        Args:
+            term: Search term (case-insensitive).
+            is_active: Filter by active status.
+            limit: Maximum results to return.
+
+        Returns:
+            List of matching products (deduplicated).
+        """
+        import time  # noqa: PLC0415
+
+        start = time.perf_counter()
+
+        # Search by name
+        name_results = self.search_by_name(term, is_active, limit)
+
+        # Search by SKU
+        sku_results = self.search_by_sku(term, is_active, limit)
+
+        # Combine and deduplicate by ID
+        seen_ids: set[str] = set()
+        combined: list[ProductResponse] = []
+
+        for product in name_results + sku_results:
+            product_id = str(product.id)
+            if product_id not in seen_ids:
+                seen_ids.add(product_id)
+                combined.append(product)
+                if len(combined) >= limit:
                     break
 
         duration_ms = (time.perf_counter() - start) * 1000
-        log_db_query("SEARCH", self.table_name, duration_ms, term=term, results=len(matches))
+        log_db_query("SEARCH", self.table_name, duration_ms, term=term, results=len(combined))
 
-        return matches
+        return combined
 
 

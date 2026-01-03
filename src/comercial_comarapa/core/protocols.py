@@ -74,6 +74,18 @@ class TableQueryProtocol(Protocol):
         """Filter by less-than-or-equal."""
         ...
 
+    def ilike(self, column: str, pattern: str) -> Self:
+        """Filter by case-insensitive LIKE pattern.
+
+        Args:
+            column: Column name to filter.
+            pattern: Pattern with % wildcards.
+
+        Returns:
+            Self for method chaining.
+        """
+        ...
+
     def limit(self, count: int) -> Self:
         """Limit number of results.
 

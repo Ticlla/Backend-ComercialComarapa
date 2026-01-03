@@ -17,7 +17,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from comercial_comarapa.core.exceptions import (
+    CategoryNotFoundError,
     DuplicateSKUError,
+    InvalidPriceRangeError,
     ProductNotFoundError,
 )
 from comercial_comarapa.core.logging import get_logger
@@ -77,7 +79,14 @@ class ProductService:
 
         Returns:
             Tuple of (products list, pagination metadata).
+
+        Raises:
+            InvalidPriceRangeError: If min_price > max_price.
         """
+        # B6: Validate price range
+        if min_price is not None and max_price is not None and min_price > max_price:
+            raise InvalidPriceRangeError(float(min_price), float(max_price))
+
         logger.info(
             "listing_products",
             page=pagination.page if pagination else 1,
@@ -139,8 +148,13 @@ class ProductService:
 
         Raises:
             DuplicateSKUError: If SKU already exists.
+            CategoryNotFoundError: If category_id is provided but doesn't exist.
         """
         logger.info("creating_product", sku=data.sku, name=data.name)
+
+        # B3: Validate category exists if provided
+        if data.category_id and not self.category_repository.exists(data.category_id):
+            raise CategoryNotFoundError(data.category_id)
 
         # Check for duplicate SKU
         if self.repository.sku_exists(data.sku):
@@ -167,6 +181,7 @@ class ProductService:
         Raises:
             ProductNotFoundError: If product not found.
             DuplicateSKUError: If new SKU already exists.
+            CategoryNotFoundError: If new category_id doesn't exist.
         """
         logger.info("updating_product", product_id=str(product_id))
 
@@ -174,6 +189,14 @@ class ProductService:
         existing = self.repository.get_by_id(product_id)
         if existing is None:
             raise ProductNotFoundError(product_id)
+
+        # B3: Validate category exists if being changed
+        if (
+            data.category_id is not None
+            and data.category_id != existing.category_id
+            and not self.category_repository.exists(data.category_id)
+        ):
+            raise CategoryNotFoundError(data.category_id)
 
         # Check for duplicate SKU if SKU is being changed
         if (
