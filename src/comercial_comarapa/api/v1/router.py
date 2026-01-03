@@ -12,8 +12,10 @@ Usage:
 from fastapi import APIRouter
 
 from comercial_comarapa.api.v1.categories import router as categories_router
+from comercial_comarapa.api.v1.products import router as products_router
 
 api_router = APIRouter()
 
 # Include all v1 routers
 api_router.include_router(categories_router)
+api_router.include_router(products_router)

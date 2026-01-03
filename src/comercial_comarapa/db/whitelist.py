@@ -18,6 +18,9 @@ ALLOWED_TABLES = frozenset({
     "inventory_movements",
     "sales",
     "sale_items",
+    # Views
+    "v_low_stock_products",
+    "v_daily_sales_summary",
 })
 
 ALLOWED_COLUMNS = frozenset({
@@ -35,6 +38,9 @@ ALLOWED_COLUMNS = frozenset({
     "sale_number", "sale_date", "subtotal", "discount", "tax", "total", "status",
     # Sale items
     "sale_id",
+    # Views
+    "category_name", "units_needed",  # v_low_stock_products
+    "sale_day", "total_transactions", "gross_sales", "total_discounts", "net_sales",  # v_daily_sales_summary
 })
 
 
