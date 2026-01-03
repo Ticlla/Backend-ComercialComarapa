@@ -17,7 +17,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from comercial_comarapa.core.exceptions import (
+    DatabaseError,
     InsufficientStockError,
+    InvalidOperationError,
     ProductNotFoundError,
 )
 from comercial_comarapa.core.logging import get_logger
@@ -48,6 +50,7 @@ class InventoryService:
     """Service class for inventory business logic.
 
     Handles stock entries, exits, adjustments, and movement history.
+    All stock operations use atomic database updates to prevent race conditions.
     """
 
     def __init__(self, db: DatabaseClientProtocol):
@@ -61,6 +64,8 @@ class InventoryService:
 
     def stock_entry(self, data: StockEntryRequest) -> MovementResponse:
         """Add stock to a product (entry).
+
+        Uses atomic stock update to prevent race conditions.
 
         Args:
             data: Stock entry request with product_id, quantity, reason, notes.
@@ -78,16 +83,15 @@ class InventoryService:
             reason=data.reason.value,
         )
 
-        # Get current stock
-        current_stock = self.product_repository.get_current_stock(data.product_id)
-        if current_stock is None:
-            raise ProductNotFoundError(data.product_id)
-
-        # Calculate new stock
-        new_stock = current_stock + data.quantity
-
-        # Update product stock
-        self.product_repository.update_stock(data.product_id, new_stock)
+        # Atomically update stock and get previous/new values
+        try:
+            previous_stock, new_stock = self.product_repository.atomic_stock_delta(
+                data.product_id, delta=data.quantity
+            )
+        except DatabaseError as e:
+            if "Product not found" in str(e):
+                raise ProductNotFoundError(data.product_id) from e
+            raise
 
         # Create movement record
         movement = self.repository.create(
@@ -95,7 +99,7 @@ class InventoryService:
             movement_type=MovementType.ENTRY,
             quantity=data.quantity,
             reason=data.reason,
-            previous_stock=current_stock,
+            previous_stock=previous_stock,
             new_stock=new_stock,
             notes=data.notes,
         )
@@ -103,7 +107,7 @@ class InventoryService:
         logger.info(
             "stock_entry_completed",
             product_id=str(data.product_id),
-            previous_stock=current_stock,
+            previous_stock=previous_stock,
             new_stock=new_stock,
         )
 
@@ -111,6 +115,8 @@ class InventoryService:
 
     def stock_exit(self, data: StockExitRequest) -> MovementResponse:
         """Remove stock from a product (exit).
+
+        Uses atomic stock check-and-update to prevent race conditions.
 
         Args:
             data: Stock exit request with product_id, quantity, reason, notes.
@@ -129,12 +135,11 @@ class InventoryService:
             reason=data.reason.value,
         )
 
-        # Get current stock
+        # First check if product exists and has sufficient stock
         current_stock = self.product_repository.get_current_stock(data.product_id)
         if current_stock is None:
             raise ProductNotFoundError(data.product_id)
 
-        # Check sufficient stock
         if data.quantity > current_stock:
             raise InsufficientStockError(
                 product_id=data.product_id,
@@ -142,11 +147,15 @@ class InventoryService:
                 available=current_stock,
             )
 
-        # Calculate new stock
-        new_stock = current_stock - data.quantity
-
-        # Update product stock
-        self.product_repository.update_stock(data.product_id, new_stock)
+        # Atomically update stock with negative delta
+        try:
+            previous_stock, new_stock = self.product_repository.atomic_stock_delta(
+                data.product_id, delta=-data.quantity
+            )
+        except DatabaseError as e:
+            if "Product not found" in str(e):
+                raise ProductNotFoundError(data.product_id) from e
+            raise
 
         # Create movement record
         movement = self.repository.create(
@@ -154,7 +163,7 @@ class InventoryService:
             movement_type=MovementType.EXIT,
             quantity=data.quantity,
             reason=data.reason,
-            previous_stock=current_stock,
+            previous_stock=previous_stock,
             new_stock=new_stock,
             notes=data.notes,
         )
@@ -162,7 +171,7 @@ class InventoryService:
         logger.info(
             "stock_exit_completed",
             product_id=str(data.product_id),
-            previous_stock=current_stock,
+            previous_stock=previous_stock,
             new_stock=new_stock,
         )
 
@@ -170,6 +179,8 @@ class InventoryService:
 
     def stock_adjustment(self, data: StockAdjustmentRequest) -> MovementResponse:
         """Adjust stock to a specific value.
+
+        Uses atomic stock update to prevent race conditions.
 
         Args:
             data: Stock adjustment request with product_id, new_stock, reason, notes.
@@ -179,6 +190,7 @@ class InventoryService:
 
         Raises:
             ProductNotFoundError: If product not found.
+            InvalidOperationError: If new_stock equals current stock (no change).
         """
         logger.info(
             "stock_adjustment",
@@ -187,38 +199,52 @@ class InventoryService:
             reason=data.reason.value,
         )
 
-        # Get current stock
+        # Check current stock first to validate and reject no-change adjustments
         current_stock = self.product_repository.get_current_stock(data.product_id)
         if current_stock is None:
             raise ProductNotFoundError(data.product_id)
 
-        # Calculate quantity (absolute difference)
-        quantity = abs(data.new_stock - current_stock)
+        # B3 Fix: Reject adjustments that don't change stock
+        if data.new_stock == current_stock:
+            raise InvalidOperationError(
+                f"Stock adjustment rejected: new_stock ({data.new_stock}) equals "
+                f"current_stock ({current_stock}). No change needed.",
+                details={
+                    "product_id": str(data.product_id),
+                    "current_stock": current_stock,
+                    "requested_stock": data.new_stock,
+                },
+            )
 
-        # If no change, still record the adjustment (for audit purposes)
-        if quantity == 0:
-            quantity = 0  # Will record 0 quantity adjustment
+        # Atomically set stock and get previous/new values
+        try:
+            previous_stock, new_stock = self.product_repository.atomic_stock_set(
+                data.product_id, data.new_stock
+            )
+        except DatabaseError as e:
+            if "Product not found" in str(e):
+                raise ProductNotFoundError(data.product_id) from e
+            raise
 
-        # Update product stock
-        self.product_repository.update_stock(data.product_id, data.new_stock)
+        # Calculate quantity as absolute difference
+        quantity = abs(new_stock - previous_stock)
 
         # Create movement record
-        # Note: For adjustments, quantity is the absolute change
         movement = self.repository.create(
             product_id=data.product_id,
             movement_type=MovementType.ADJUSTMENT,
-            quantity=max(quantity, 1),  # At least 1 for valid record
+            quantity=quantity,
             reason=data.reason,
-            previous_stock=current_stock,
-            new_stock=data.new_stock,
+            previous_stock=previous_stock,
+            new_stock=new_stock,
             notes=data.notes,
         )
 
         logger.info(
             "stock_adjustment_completed",
             product_id=str(data.product_id),
-            previous_stock=current_stock,
-            new_stock=data.new_stock,
+            previous_stock=previous_stock,
+            new_stock=new_stock,
         )
 
         return movement

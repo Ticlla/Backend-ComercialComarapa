@@ -291,6 +291,26 @@ class TestStockAdjustment:
         )
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
+    def test_stock_adjustment_no_change_returns_400(
+        self, client: TestClient, sample_product: dict
+    ):
+        """POST /adjustment with same stock value returns 400."""
+        product_id = sample_product["id"]
+        current_stock = sample_product["current_stock"]
+
+        response = client.post(
+            "/api/v1/inventory/adjustment",
+            json={
+                "product_id": product_id,
+                "new_stock": current_stock,  # Same as current
+                "reason": "CORRECTION",
+            },
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        data = response.json()
+        assert data["error"]["code"] == "INVALID_OPERATION"
+
 
 class TestMovementHistory:
     """Tests for movement history and ordering."""

@@ -57,6 +57,32 @@ class LocalDatabaseClient:
         with self._pool_manager.get_pool().connection() as conn:
             yield conn
 
+    @contextmanager
+    def transaction(self) -> Generator[Any, None, None]:
+        """Get a transactional connection for atomic operations.
+
+        All operations within the context will be committed together
+        or rolled back on error.
+
+        Yields:
+            psycopg connection object with manual commit.
+
+        Example:
+            with client.transaction() as conn:
+                cursor = conn.cursor()
+                cursor.execute(...)
+                cursor.execute(...)  # Both committed together
+        """
+        conn = self._pool_manager.get_pool().getconn()
+        try:
+            yield conn
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            self._pool_manager.get_pool().putconn(conn)
+
     def table(self, table_name: str) -> TableQuery:
         """Get a table query builder.
 
@@ -71,6 +97,116 @@ class LocalDatabaseClient:
         """
         validate_table(table_name)
         return TableQuery(self, table_name)
+
+    def execute_atomic_stock_update(
+        self,
+        product_id: str,
+        delta: int,
+    ) -> tuple[int, int]:
+        """Atomically update product stock and return previous/new values.
+
+        Uses UPDATE ... RETURNING to prevent race conditions.
+
+        Args:
+            product_id: Product UUID string.
+            delta: Amount to add (positive) or subtract (negative).
+
+        Returns:
+            Tuple of (previous_stock, new_stock).
+
+        Raises:
+            DatabaseError: If product not found or update fails.
+        """
+        from psycopg import sql  # noqa: PLC0415
+
+        # Use a single atomic UPDATE with subquery to get previous value
+        query = sql.SQL("""
+            UPDATE products
+            SET current_stock = current_stock + %s,
+                updated_at = NOW()
+            WHERE id = %s::uuid
+            RETURNING
+                current_stock - %s AS previous_stock,
+                current_stock AS new_stock
+        """)
+
+        with self.get_connection() as conn:
+            try:
+                with conn.cursor() as cursor:
+                    cursor.execute(query, [delta, product_id, delta])
+                    row = cursor.fetchone()
+                    if row is None:
+                        raise DatabaseError(
+                            f"Product not found: {product_id}",
+                            {"product_id": product_id},
+                        )
+                conn.commit()
+                return row[0], row[1]
+            except DatabaseError:
+                conn.rollback()
+                raise
+            except Exception as e:
+                conn.rollback()
+                raise DatabaseError(
+                    f"Atomic stock update failed: {e}",
+                    {"product_id": product_id, "delta": delta},
+                ) from e
+
+    def execute_atomic_stock_set(
+        self,
+        product_id: str,
+        new_stock: int,
+    ) -> tuple[int, int]:
+        """Atomically set product stock and return previous/new values.
+
+        Uses CTE with UPDATE ... RETURNING to prevent race conditions.
+
+        Args:
+            product_id: Product UUID string.
+            new_stock: Absolute new stock value.
+
+        Returns:
+            Tuple of (previous_stock, new_stock).
+
+        Raises:
+            DatabaseError: If product not found or update fails.
+        """
+        from psycopg import sql  # noqa: PLC0415
+
+        # Use CTE to capture previous value before update
+        query = sql.SQL("""
+            WITH old_values AS (
+                SELECT current_stock FROM products WHERE id = %s::uuid
+            )
+            UPDATE products p
+            SET current_stock = %s,
+                updated_at = NOW()
+            FROM old_values
+            WHERE p.id = %s::uuid
+            RETURNING old_values.current_stock AS previous_stock, p.current_stock AS new_stock
+        """)
+
+        with self.get_connection() as conn:
+            try:
+                with conn.cursor() as cursor:
+                    cursor.execute(query, [product_id, new_stock, product_id])
+                    row = cursor.fetchone()
+                    if row is None:
+                        raise DatabaseError(
+                            f"Product not found: {product_id}",
+                            {"product_id": product_id},
+                        )
+                conn.commit()
+                return row[0], row[1]
+            except DatabaseError:
+                conn.rollback()
+                raise
+            except Exception as e:
+                conn.rollback()
+                raise DatabaseError(
+                    f"Atomic stock set failed: {e}",
+                    {"product_id": product_id, "new_stock": new_stock},
+                ) from e
 
     def close(self) -> None:
         """Close the connection pool."""

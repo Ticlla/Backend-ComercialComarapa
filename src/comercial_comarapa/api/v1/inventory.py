@@ -115,8 +115,8 @@ def stock_entry(
     summary="Register stock exit",
     description="Remove stock from a product. Creates an EXIT movement record.",
     responses={
+        400: {"description": "Insufficient stock"},
         404: {"description": "Product not found"},
-        422: {"description": "Insufficient stock"},
     },
 )
 def stock_exit(

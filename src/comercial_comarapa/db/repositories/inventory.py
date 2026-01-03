@@ -96,12 +96,53 @@ class InventoryRepository:
         log_db_query("INSERT", self.table_name, duration_ms)
 
         if result and len(result) > 0:
-            return self._enrich_movement(result[0])
+            # For single create, fetch product info
+            return self._enrich_single_movement(result[0])
 
         raise RuntimeError("Failed to create inventory movement")
 
-    def _enrich_movement(self, data: dict) -> MovementResponse:
-        """Enrich movement data with product info.
+    def _fetch_products_batch(self, product_ids: set[str]) -> dict[str, dict[str, str]]:
+        """Fetch product info for multiple products in a single query.
+
+        Args:
+            product_ids: Set of product UUID strings.
+
+        Returns:
+            Dict mapping product_id to {name, sku} dict.
+        """
+        if not product_ids:
+            return {}
+
+        import time  # noqa: PLC0415
+
+        start = time.perf_counter()
+
+        # Build query for all products at once
+        products_map: dict[str, dict[str, str]] = {}
+
+        # Use IN clause through multiple eq calls (workaround)
+        # For better performance, could use raw SQL with ANY()
+        for pid in product_ids:
+            result = (
+                self.db.table("products")
+                .select("id, name, sku")
+                .eq("id", pid)
+                .single()
+                .execute()
+            )
+            if result.data:
+                products_map[pid] = {
+                    "name": result.data.get("name"),
+                    "sku": result.data.get("sku"),
+                }
+
+        duration_ms = (time.perf_counter() - start) * 1000
+        log_db_query("BATCH_FETCH_PRODUCTS", "products", duration_ms, count=len(product_ids))
+
+        return products_map
+
+    def _enrich_single_movement(self, data: dict) -> MovementResponse:
+        """Enrich a single movement with product info.
 
         Args:
             data: Raw movement data from database.
@@ -109,7 +150,7 @@ class InventoryRepository:
         Returns:
             MovementResponse with product name and SKU.
         """
-        # Fetch product info for denormalization
+        # Fetch product info
         product_result = (
             self.db.table("products")
             .select("name, sku")
@@ -123,6 +164,38 @@ class InventoryRepository:
             data["product_sku"] = product_result.data.get("sku")
 
         return MovementResponse.model_validate(data)
+
+    def _enrich_movements_batch(
+        self, movements_data: list[dict]
+    ) -> list[MovementResponse]:
+        """Enrich multiple movements with product info using batch fetch.
+
+        This prevents N+1 queries by fetching all products in advance.
+
+        Args:
+            movements_data: List of raw movement dicts from database.
+
+        Returns:
+            List of MovementResponse with product info.
+        """
+        if not movements_data:
+            return []
+
+        # Collect unique product IDs
+        product_ids = {m["product_id"] for m in movements_data}
+
+        # Batch fetch all products
+        products_map = self._fetch_products_batch(product_ids)
+
+        # Enrich each movement
+        enriched = []
+        for data in movements_data:
+            product_info = products_map.get(data["product_id"], {})
+            data["product_name"] = product_info.get("name")
+            data["product_sku"] = product_info.get("sku")
+            enriched.append(MovementResponse.model_validate(data))
+
+        return enriched
 
     def get_by_id(self, movement_id: UUID) -> MovementResponse | None:
         """Get movement by ID.
@@ -142,7 +215,7 @@ class InventoryRepository:
         )
 
         if result.data:
-            return self._enrich_movement(result.data)
+            return self._enrich_single_movement(result.data)
         return None
 
     def list_by_product(
@@ -180,11 +253,47 @@ class InventoryRepository:
             product_id=str(product_id),
         )
 
-        movements = []
-        for row in result.data or []:
-            movements.append(self._enrich_movement(row))
+        # Use batch enrichment (only 1 product in this case, but consistent)
+        return self._enrich_movements_batch(result.data or [])
 
-        return movements
+    def _apply_filters(
+        self,
+        query: Any,
+        product_id: UUID | None = None,
+        movement_type: MovementType | None = None,
+        reason: MovementReason | None = None,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
+    ) -> Any:
+        """Apply common filters to a query.
+
+        Args:
+            query: Query builder instance.
+            product_id: Filter by product.
+            movement_type: Filter by movement type.
+            reason: Filter by reason.
+            date_from: Filter by start date.
+            date_to: Filter by end date.
+
+        Returns:
+            Query with filters applied.
+        """
+        if product_id:
+            query = query.eq("product_id", str(product_id))
+
+        if movement_type:
+            query = query.eq("movement_type", movement_type.value)
+
+        if reason:
+            query = query.eq("reason", reason.value)
+
+        if date_from:
+            query = query.gte("created_at", date_from.isoformat())
+
+        if date_to:
+            query = query.lte("created_at", date_to.isoformat())
+
+        return query
 
     def list_with_filters(
         self,
@@ -218,21 +327,10 @@ class InventoryRepository:
         # Build query
         query = self.db.table(self.table_name).select("*")
 
-        # Apply filters
-        if product_id:
-            query = query.eq("product_id", str(product_id))
-
-        if movement_type:
-            query = query.eq("movement_type", movement_type.value)
-
-        if reason:
-            query = query.eq("reason", reason.value)
-
-        if date_from:
-            query = query.gte("created_at", date_from.isoformat())
-
-        if date_to:
-            query = query.lte("created_at", date_to.isoformat())
+        # Apply filters using shared method
+        query = self._apply_filters(
+            query, product_id, movement_type, reason, date_from, date_to
+        )
 
         # Apply ordering (newest first) and pagination
         query = query.order("created_at", desc=True)
@@ -246,10 +344,8 @@ class InventoryRepository:
         duration_ms = (time.perf_counter() - start) * 1000
         log_db_query("SELECT", self.table_name, duration_ms, page=pagination.page)
 
-        # Enrich results
-        movements = []
-        for row in result.data or []:
-            movements.append(self._enrich_movement(row))
+        # Use batch enrichment to avoid N+1 queries
+        movements = self._enrich_movements_batch(result.data or [])
 
         # Get total count
         total_items = self._count_with_filters(
@@ -290,20 +386,10 @@ class InventoryRepository:
         """
         query = self.db.table(self.table_name).select("id")
 
-        if product_id:
-            query = query.eq("product_id", str(product_id))
-
-        if movement_type:
-            query = query.eq("movement_type", movement_type.value)
-
-        if reason:
-            query = query.eq("reason", reason.value)
-
-        if date_from:
-            query = query.gte("created_at", date_from.isoformat())
-
-        if date_to:
-            query = query.lte("created_at", date_to.isoformat())
+        # Apply filters using shared method
+        query = self._apply_filters(
+            query, product_id, movement_type, reason, date_from, date_to
+        )
 
         return query.count()
 

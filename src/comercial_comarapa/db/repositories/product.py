@@ -134,6 +134,58 @@ class ProductRepository(BaseRepository[ProductResponse, ProductCreate, ProductUp
             return self.response_model.model_validate(result[0])
         return None
 
+    def atomic_stock_delta(self, product_id: UUID, delta: int) -> tuple[int, int]:
+        """Atomically update stock by delta and return previous/new values.
+
+        This prevents race conditions by using a single UPDATE statement.
+
+        Args:
+            product_id: Product UUID.
+            delta: Amount to add (positive) or subtract (negative).
+
+        Returns:
+            Tuple of (previous_stock, new_stock).
+
+        Raises:
+            DatabaseError: If product not found.
+        """
+        import time  # noqa: PLC0415
+
+        start = time.perf_counter()
+        previous, new = self.db.execute_atomic_stock_update(str(product_id), delta)
+        duration_ms = (time.perf_counter() - start) * 1000
+        log_db_query(
+            "ATOMIC_STOCK_DELTA", self.table_name, duration_ms,
+            id=str(product_id), delta=delta,
+        )
+        return previous, new
+
+    def atomic_stock_set(self, product_id: UUID, new_stock: int) -> tuple[int, int]:
+        """Atomically set stock and return previous/new values.
+
+        This prevents race conditions by using a single UPDATE statement.
+
+        Args:
+            product_id: Product UUID.
+            new_stock: Absolute new stock value.
+
+        Returns:
+            Tuple of (previous_stock, new_stock).
+
+        Raises:
+            DatabaseError: If product not found.
+        """
+        import time  # noqa: PLC0415
+
+        start = time.perf_counter()
+        previous, new = self.db.execute_atomic_stock_set(str(product_id), new_stock)
+        duration_ms = (time.perf_counter() - start) * 1000
+        log_db_query(
+            "ATOMIC_STOCK_SET", self.table_name, duration_ms,
+            id=str(product_id), new_stock=new_stock,
+        )
+        return previous, new
+
     def get_current_stock(self, product_id: UUID) -> int | None:
         """Get current stock for a product.
 

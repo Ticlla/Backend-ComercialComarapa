@@ -193,6 +193,38 @@ class DatabaseClientProtocol(Protocol):
         """
         ...
 
+    def execute_atomic_stock_update(
+        self,
+        product_id: str,
+        delta: int,
+    ) -> tuple[int, int]:
+        """Atomically update product stock by delta.
+
+        Args:
+            product_id: Product UUID string.
+            delta: Amount to add (positive) or subtract (negative).
+
+        Returns:
+            Tuple of (previous_stock, new_stock).
+        """
+        ...
+
+    def execute_atomic_stock_set(
+        self,
+        product_id: str,
+        new_stock: int,
+    ) -> tuple[int, int]:
+        """Atomically set product stock to absolute value.
+
+        Args:
+            product_id: Product UUID string.
+            new_stock: New stock value.
+
+        Returns:
+            Tuple of (previous_stock, new_stock).
+        """
+        ...
+
     def close(self) -> None:
         """Close database connection/pool."""
         ...
