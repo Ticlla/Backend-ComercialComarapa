@@ -189,3 +189,4 @@ def delete_product(
     service.delete_product(product_id)
     return DeleteResponse(id=product_id, message="Product deleted successfully")
 
+
