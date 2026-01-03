@@ -5,9 +5,11 @@ and orchestrate repository operations.
 """
 
 from comercial_comarapa.services.category_service import CategoryService
+from comercial_comarapa.services.inventory_service import InventoryService
 from comercial_comarapa.services.product_service import ProductService
 
 __all__ = [
     "CategoryService",
+    "InventoryService",
     "ProductService",
 ]

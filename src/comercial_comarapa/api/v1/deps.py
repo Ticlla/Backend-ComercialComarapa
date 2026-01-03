@@ -15,6 +15,7 @@ Usage:
 
 from comercial_comarapa.db.database import get_db
 from comercial_comarapa.services.category_service import CategoryService
+from comercial_comarapa.services.inventory_service import InventoryService
 from comercial_comarapa.services.product_service import ProductService
 
 
@@ -36,4 +37,14 @@ def get_product_service() -> ProductService:
     """
     db = get_db()
     return ProductService(db)
+
+
+def get_inventory_service() -> InventoryService:
+    """Get InventoryService instance with database dependency.
+
+    Returns:
+        InventoryService instance.
+    """
+    db = get_db()
+    return InventoryService(db)
 

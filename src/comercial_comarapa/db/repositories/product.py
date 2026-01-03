@@ -107,6 +107,54 @@ class ProductRepository(BaseRepository[ProductResponse, ProductCreate, ProductUp
         )
         return len(result.data or []) > 0
 
+    def update_stock(self, product_id: UUID, new_stock: int) -> ProductResponse | None:
+        """Update product stock level.
+
+        Args:
+            product_id: Product UUID.
+            new_stock: New stock value.
+
+        Returns:
+            Updated product if found, None otherwise.
+        """
+        import time  # noqa: PLC0415
+
+        start = time.perf_counter()
+
+        result = (
+            self.db.table(self.table_name)
+            .eq("id", str(product_id))
+            .update({"current_stock": new_stock})
+        ).data
+
+        duration_ms = (time.perf_counter() - start) * 1000
+        log_db_query("UPDATE_STOCK", self.table_name, duration_ms, id=str(product_id))
+
+        if result and len(result) > 0:
+            return self.response_model.model_validate(result[0])
+        return None
+
+    def get_current_stock(self, product_id: UUID) -> int | None:
+        """Get current stock for a product.
+
+        Args:
+            product_id: Product UUID.
+
+        Returns:
+            Current stock if product found, None otherwise.
+        """
+        result = (
+            self.db.table(self.table_name)
+            .select("current_stock")
+            .eq("id", str(product_id))
+            .single()
+            .execute()
+        )
+
+        if result.data:
+            return result.data.get("current_stock")
+        return None
+
     def list_by_category(
         self,
         category_id: UUID,
