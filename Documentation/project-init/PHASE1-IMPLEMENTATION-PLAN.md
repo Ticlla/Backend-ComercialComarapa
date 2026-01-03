@@ -1,10 +1,10 @@
 # Phase 1 Implementation Plan
 ## Backend REST API - Comercial Comarapa
 
-**Document Version:** 1.4  
+**Document Version:** 1.5  
 **Created:** January 2, 2026  
 **Last Updated:** January 2, 2026  
-**Status:** M3 Completed - Ready for M4  
+**Status:** M4 Completed - Ready for M5  
 
 ---
 
@@ -16,8 +16,8 @@ M0: Local Environment  ███████████████████
 M1: Core Models        ████████████████████ 100% ✅
 M2: Categories API     ████████████████████ 100% ✅
 M3: Products API       ████████████████████ 100% ✅
-M4: Inventory API      ░░░░░░░░░░░░░░░░░░░░   0% ⏳ NEXT
-M5: Sales API          ░░░░░░░░░░░░░░░░░░░░   0%
+M4: Inventory API      ████████████████████ 100% ✅
+M5: Sales API          ░░░░░░░░░░░░░░░░░░░░   0% ⏳ NEXT
 M6: Error Handling     ████████████████░░░░  80% ✅ (exceptions done)
 M7: Documentation      ░░░░░░░░░░░░░░░░░░░░   0%
 ```
@@ -36,13 +36,13 @@ This document provides a detailed, step-by-step implementation plan for Phase 1 
 | **M1: Core Models** | 2-3 hours | M0 | ✅ Done |
 | **M2: Categories API** | 2-3 hours | M1 | ✅ Done |
 | **M3: Products API** | 4-5 hours | M1, M2 | ✅ Done |
-| M4: Inventory API | 3-4 hours | M1, M3 | ⏳ Next |
-| M5: Sales API | 4-5 hours | M1, M3, M4 | ⬜ |
+| **M4: Inventory API** | 3-4 hours | M1, M3 | ✅ Done |
+| M5: Sales API | 4-5 hours | M1, M3, M4 | ⏳ Next |
 | **M6: Error Handling** | 1-2 hours | Can be done in parallel | ✅ ~80% |
 | M7: Documentation | 1-2 hours | All above | ⬜ |
 
 **Total Estimated:** 19-27 hours  
-**Completed:** ~15 hours (M0 + M1 + M2 + M3 + M6 partial)
+**Completed:** ~19 hours (M0 + M1 + M2 + M3 + M4 + M6 partial)
 
 ---
 
@@ -725,7 +725,7 @@ class TestProductsAPI:
 
 ---
 
-## Milestone 4: Inventory API
+## Milestone 4: Inventory API ✅
 
 **Goal:** Implement stock movements and history.
 
@@ -733,26 +733,26 @@ class TestProductsAPI:
 
 | # | Task | File | Status |
 |---|------|------|--------|
-| 4.1 | Create Inventory repository | `db/repositories/inventory_repo.py` | ⬜ |
-| 4.2 | Create Inventory service | `services/inventory_service.py` | ⬜ |
-| 4.3 | Implement stock entry logic | `services/inventory_service.py` | ⬜ |
-| 4.4 | Implement stock exit logic | `services/inventory_service.py` | ⬜ |
-| 4.5 | Implement stock adjustment | `services/inventory_service.py` | ⬜ |
-| 4.6 | Create Inventory router | `api/v1/inventory.py` | ⬜ |
-| 4.7 | Register router | `api/v1/router.py` | ⬜ |
-| 4.8 | Test endpoints | Swagger UI | ⬜ |
+| 4.1 | Create Inventory repository | `db/repositories/inventory.py` | ✅ |
+| 4.2 | Create Inventory service | `services/inventory_service.py` | ✅ |
+| 4.3 | Implement stock entry logic | `services/inventory_service.py` | ✅ |
+| 4.4 | Implement stock exit logic | `services/inventory_service.py` | ✅ |
+| 4.5 | Implement stock adjustment | `services/inventory_service.py` | ✅ |
+| 4.6 | Create Inventory router | `api/v1/inventory.py` | ✅ |
+| 4.7 | Register router | `api/v1/router.py` | ✅ |
+| 4.8 | Test endpoints | Swagger UI | ✅ |
 
 ### Tests
 
 | # | Test | File | Status |
 |---|------|------|--------|
-| 4.T1 | Test stock entry increases stock | `tests/api/test_inventory.py` | ⬜ |
-| 4.T2 | Test stock exit decreases stock | `tests/api/test_inventory.py` | ⬜ |
-| 4.T3 | Test stock exit insufficient error | `tests/api/test_inventory.py` | ⬜ |
-| 4.T4 | Test stock adjustment | `tests/api/test_inventory.py` | ⬜ |
-| 4.T5 | Test movement history by product | `tests/api/test_inventory.py` | ⬜ |
-| 4.T6 | Test movement records previous/new stock | `tests/api/test_inventory.py` | ⬜ |
-| 4.T7 | Run `hatch run test` | - | ⬜ |
+| 4.T1 | Test stock entry increases stock | `tests/api/test_inventory.py` | ✅ |
+| 4.T2 | Test stock exit decreases stock | `tests/api/test_inventory.py` | ✅ |
+| 4.T3 | Test stock exit insufficient error | `tests/api/test_inventory.py` | ✅ |
+| 4.T4 | Test stock adjustment | `tests/api/test_inventory.py` | ✅ |
+| 4.T5 | Test movement history by product | `tests/api/test_inventory.py` | ✅ |
+| 4.T6 | Test movement records previous/new stock | `tests/api/test_inventory.py` | ✅ |
+| 4.T7 | Run `hatch run test` | - | ✅ |
 
 ### Test Cases (M4)
 
@@ -1243,7 +1243,7 @@ Backend-ComercialComarapa/
 │   │       ├── base.py             # M2 ✅
 │   │       ├── category.py         # M2 ✅
 │   │       ├── product.py          # M3 ✅
-│   │       ├── inventory_repo.py   # M4
+│   │       ├── inventory.py        # M4 ✅
 │   │       └── sale_repo.py        # M5
 │   │
 │   ├── models/
@@ -1259,7 +1259,7 @@ Backend-ComercialComarapa/
 │   │   ├── __init__.py           # M2 ✅
 │   │   ├── category_service.py   # M2 ✅
 │   │   ├── product_service.py    # M3 ✅
-│   │   ├── inventory_service.py  # M4
+│   │   ├── inventory_service.py  # M4 ✅
 │   │   └── sale_service.py       # M5
 │   │
 │   ├── api/
@@ -1270,7 +1270,7 @@ Backend-ComercialComarapa/
 │   │       ├── router.py       # M2 ✅
 │   │       ├── categories.py   # M2 ✅
 │   │       ├── products.py     # M3 ✅
-│   │       ├── inventory.py    # M4
+│   │       ├── inventory.py    # M4 ✅
 │   │       └── sales.py        # M5
 │   │
 │   └── core/
@@ -1296,11 +1296,11 @@ Backend-ComercialComarapa/
         ├── __init__.py         # ✅
         ├── test_categories.py  # M2 ✅
         ├── test_products.py    # M3 ✅
-        ├── test_inventory.py   # M4
+        ├── test_inventory.py   # M4 ✅
         └── test_sales.py       # M5
 ```
 
-**Progress:** 39 of 43 files created (**91%**)
+**Progress:** 42 of 44 files created (**95%**)
 
 ---
 
@@ -1328,4 +1328,5 @@ Phase 1 is complete when:
 | 1.2 | 2026-01-02 | Marked M1 as completed (54 tests passing), updated db/ module structure after refactoring, updated M6 status |
 | 1.3 | 2026-01-02 | Marked M2 as completed (Categories API implemented with repository, service, router) |
 | 1.4 | 2026-01-02 | Marked M3 as completed (Products API with CRUD, search, low-stock endpoints) |
+| 1.5 | 2026-01-02 | Marked M4 as completed (Inventory API with stock entry/exit/adjustment) |
 
