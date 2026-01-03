@@ -52,3 +52,4 @@ async def check_db_connection() -> dict:
             "message": f"Database connection failed: {error_msg}",
         }
 
+

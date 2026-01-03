@@ -101,3 +101,4 @@ def validate_columns(columns: str) -> str:
             )
     return columns
 
+

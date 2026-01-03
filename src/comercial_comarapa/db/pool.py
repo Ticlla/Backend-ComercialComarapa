@@ -65,3 +65,4 @@ def close_pool() -> None:
     """Close the connection pool."""
     PoolManager().close()
 
+

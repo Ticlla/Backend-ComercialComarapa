@@ -80,3 +80,4 @@ class CategoryRepository(BaseRepository[CategoryResponse, CategoryCreate, Catego
         result = query.execute()
         return len(result.data or []) > 0
 
+

@@ -151,3 +151,4 @@ LIMIT 3;
 -- SELECT * FROM v_low_stock_products;  -- Should show 2 products
 
 
+

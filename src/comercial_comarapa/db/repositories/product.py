@@ -142,3 +142,4 @@ class ProductRepository(BaseRepository[ProductResponse, ProductCreate, ProductUp
         )
         return [self.response_model.model_validate(row) for row in result.data or []]
 
+

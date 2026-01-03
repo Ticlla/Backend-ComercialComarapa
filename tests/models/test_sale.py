@@ -137,3 +137,4 @@ class TestSaleStatus:
         assert SaleStatus.CANCELLED.value == "CANCELLED"
 
 
+
