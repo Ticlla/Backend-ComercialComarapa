@@ -265,9 +265,11 @@ BackEnd-CC/
 ├── .env.example                   # Environment template
 ├── .env                           # Local environment (git-ignored)
 ├── .gitignore                     # Git ignore rules
+├── .gitattributes                 # Line ending normalization (LF)
 │
 ├── db/                            # Database files
 │   ├── schema.sql                 # Database schema
+│   ├── migrations/                # Database migrations (future)
 │   └── seeds/
 │       └── seed_data.sql          # Sample data for development
 │
@@ -453,11 +455,13 @@ models/
 │
 ├── inventory.py
 │   ├── MovementType        # Enum: ENTRY, EXIT, ADJUSTMENT
-│   ├── MovementReason      # Enum: PURCHASE, SALE, etc.
-│   ├── StockEntryRequest
-│   ├── StockExitRequest
-│   ├── StockAdjustmentRequest
-│   └── MovementResponse
+│   ├── MovementReason      # Enum: PURCHASE, SALE, RETURN, DAMAGE, CORRECTION, OTHER
+│   ├── StockEntryRequest   # Request to add stock
+│   ├── StockExitRequest    # Request to remove stock
+│   ├── StockAdjustmentRequest  # Request to set stock to specific value
+│   ├── MovementResponse    # API response for a movement
+│   ├── MovementSummary     # Aggregated movement stats for a product
+│   └── MovementFilter      # Filter parameters for listing movements
 │
 └── sale.py
     ├── SaleStatus          # Enum: COMPLETED, CANCELLED
@@ -949,8 +953,9 @@ DomainError (core/exceptions.py)
 │
 ├── DatabaseError (500)
 │   ├── ConnectionError
-│   ├── TransactionError
-│   └── UniqueConstraintViolationError (409)
+│   └── TransactionError
+│
+├── UniqueConstraintViolationError (409)  # Direct child, maps psycopg UniqueViolation
 │
 └── ConfigurationError (500)
     └── InvalidDatabaseModeError
@@ -1261,4 +1266,5 @@ comercial_comarapa/
 | 1.0 | 2026-01-02 | - | Initial architecture document |
 | 1.1 | 2026-01-02 | - | Updated db/ module structure after refactoring |
 | 1.2 | 2026-01-02 | - | Added atomic operations, inventory patterns, updated exception hierarchy, fixed project structure |
+| 1.3 | 2026-01-03 | - | Added .gitattributes, MovementSummary/MovementFilter schemas, fixed UniqueConstraintViolationError hierarchy |
 
