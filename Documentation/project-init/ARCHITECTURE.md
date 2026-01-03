@@ -161,7 +161,7 @@ The system follows a **Layered Architecture** pattern with clear separation of c
 
 | Component | Version | Purpose |
 |-----------|---------|---------|
-| Python | 3.14 | Runtime environment |
+| Python | 3.12+ | Runtime environment |
 | Hatch | Latest | Project & dependency management |
 | Uvicorn | 0.27+ | ASGI server |
 
@@ -261,9 +261,15 @@ BackEnd-CC/
 │
 ├── pyproject.toml                 # Hatch configuration & dependencies
 ├── README.md                      # Project documentation
+├── docker-compose.yml             # Local PostgreSQL & pgAdmin
 ├── .env.example                   # Environment template
 ├── .env                           # Local environment (git-ignored)
 ├── .gitignore                     # Git ignore rules
+│
+├── db/                            # Database files
+│   ├── schema.sql                 # Database schema
+│   └── seeds/
+│       └── seed_data.sql          # Sample data for development
 │
 ├── src/
 │   └── comercial_comarapa/        # Main application package
@@ -274,15 +280,15 @@ BackEnd-CC/
 │       │
 │       ├── api/                   # API Layer
 │       │   ├── __init__.py
-│       │   ├── deps.py            # Shared dependencies
 │       │   │
 │       │   └── v1/                # API Version 1
 │       │       ├── __init__.py
 │       │       ├── router.py      # Main router aggregator
+│       │       ├── deps.py        # Dependency injection factories
 │       │       ├── products.py    # Product endpoints
 │       │       ├── categories.py  # Category endpoints
 │       │       ├── inventory.py   # Inventory endpoints
-│       │       └── sales.py       # Sales endpoints
+│       │       └── sales.py       # Sales endpoints (future)
 │       │
 │       ├── models/                # Pydantic Schemas
 │       │   ├── __init__.py
@@ -290,54 +296,61 @@ BackEnd-CC/
 │       │   ├── product.py         # Product schemas
 │       │   ├── category.py        # Category schemas
 │       │   ├── inventory.py       # Inventory movement schemas
-│       │   └── sale.py            # Sale schemas
+│       │   ├── sale.py            # Sale schemas
+│       │   └── validators.py      # Custom Pydantic validators
 │       │
 │       ├── services/              # Business Logic Layer
 │       │   ├── __init__.py
 │       │   ├── product_service.py
 │       │   ├── category_service.py
 │       │   ├── inventory_service.py
-│       │   └── sale_service.py
+│       │   └── sale_service.py    # (future)
 │       │
 │       ├── db/                    # Database Layer
 │       │   ├── __init__.py        # Package exports
 │       │   ├── database.py        # Client factory & get_db()
-│       │   ├── local_client.py    # LocalDatabaseClient, TableQuery
-│       │   ├── pool.py            # Connection pool management
-│       │   ├── whitelist.py       # SQL injection prevention
+│       │   ├── local_client.py    # LocalDatabaseClient, TableQuery, atomic ops
+│       │   ├── pool.py            # Connection pool management (psycopg_pool)
+│       │   ├── whitelist.py       # SQL injection prevention (allowlists)
 │       │   ├── health.py          # Database health checks
 │       │   ├── supabase.py        # Supabase client singleton
 │       │   │
 │       │   └── repositories/      # Repository Pattern
 │       │       ├── __init__.py
-│       │       ├── base.py        # Base repository class
-│       │       ├── product_repo.py
-│       │       ├── category_repo.py
-│       │       ├── inventory_repo.py
-│       │       └── sale_repo.py
+│       │       ├── base.py        # Generic base repository (CRUD)
+│       │       ├── product.py     # ProductRepository
+│       │       ├── category.py    # CategoryRepository
+│       │       ├── inventory.py   # InventoryRepository
+│       │       └── sale.py        # SaleRepository (future)
 │       │
 │       └── core/                  # Core Utilities
 │           ├── __init__.py
-│           ├── exceptions.py      # Custom exception classes
-│           ├── responses.py       # Standard response builders
-│           └── logging.py         # Logging configuration
+│           ├── exceptions.py      # Domain exception hierarchy
+│           ├── exception_handlers.py  # FastAPI exception handlers
+│           ├── protocols.py       # Type-safe protocols (PEP 544)
+│           └── logging.py         # Structured logging (structlog)
 │
 ├── tests/                         # Test Suite
 │   ├── __init__.py
 │   ├── conftest.py                # Pytest fixtures
-│   ├── test_products.py
-│   ├── test_categories.py
-│   ├── test_inventory.py
-│   └── test_sales.py
+│   ├── test_health.py             # Health endpoint tests
+│   │
+│   ├── api/                       # API integration tests
+│   │   ├── test_products.py
+│   │   ├── test_categories.py
+│   │   └── test_inventory.py
+│   │
+│   └── models/                    # Model/schema tests
+│       ├── test_product.py
+│       ├── test_category.py
+│       ├── test_inventory.py
+│       └── test_sale.py
 │
 └── Documentation/                 # Project Documentation
-    ├── project-init/
-    │   ├── PRD-inventory-management-api.md
-    │   └── ARCHITECTURE.md        # This document
-    ├── database/
-    │   └── schema.sql
-    └── api/
-        └── examples.md
+    └── project-init/
+        ├── PRD-inventory-management-api.md
+        ├── ARCHITECTURE.md        # This document
+        └── PHASE1-IMPLEMENTATION-PLAN.md
 ```
 
 ---
@@ -738,13 +751,145 @@ HTTP Response (JSON)
 |---------|----------|---------|
 | **Repository** | `db/repositories/` | Abstract data access |
 | **Service Layer** | `services/` | Encapsulate business logic |
-| **Dependency Injection** | `api/deps.py` | Decouple components |
+| **Dependency Injection** | `api/v1/deps.py` | Decouple components |
 | **Factory** | `main.py`, `db/database.py` | Create FastAPI app, DB client |
 | **DTO (Data Transfer Object)** | `models/` | Request/Response schemas |
 | **Singleton** | `db/pool.py`, `db/local_client.py` | Connection pool, DB client |
 | **Strategy** | `db/database.py` | Switch between local/Supabase |
+| **Protocol (PEP 544)** | `core/protocols.py` | Type-safe abstractions |
+| **Atomic Operations** | `db/local_client.py` | Race condition prevention |
+| **Batch Fetching** | `db/repositories/` | N+1 query prevention |
 
-### 9.2 Dependency Injection Flow
+### 9.2 Atomic Stock Operations Pattern
+
+To prevent race conditions in inventory operations, we use atomic database updates:
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    PROBLEM: Race Condition (TOCTOU)                 │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  Request A                         Request B                        │
+│  ─────────                         ─────────                        │
+│  1. READ stock = 100               1. READ stock = 100              │
+│  2. Calculate: 100 + 50 = 150      2. Calculate: 100 - 30 = 70     │
+│  3. WRITE stock = 150              3. WRITE stock = 70  ← WRONG!   │
+│                                                                     │
+│  Expected: 100 + 50 - 30 = 120                                     │
+│  Actual: 70 (lost the +50 update)                                  │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────┐
+│                    SOLUTION: Atomic UPDATE                          │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  -- Stock Entry (atomic increment)                                  │
+│  UPDATE products                                                    │
+│  SET current_stock = current_stock + $delta                         │
+│  WHERE id = $product_id                                            │
+│  RETURNING current_stock - $delta AS previous, current_stock AS new │
+│                                                                     │
+│  -- Stock Adjustment (atomic set with CTE)                          │
+│  WITH old AS (SELECT current_stock FROM products WHERE id = $id)    │
+│  UPDATE products SET current_stock = $new_value                     │
+│  FROM old                                                           │
+│  WHERE products.id = $id                                           │
+│  RETURNING old.current_stock AS previous, current_stock AS new     │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**Implementation in `local_client.py`:**
+
+| Method | Purpose | SQL Pattern |
+|--------|---------|-------------|
+| `execute_atomic_stock_update()` | Add/subtract stock | `UPDATE...SET col = col + delta RETURNING` |
+| `execute_atomic_stock_set()` | Set absolute value | `WITH...UPDATE...RETURNING` (CTE) |
+
+### 9.3 Inventory Dual-Storage Pattern
+
+Products and Inventory Movements have intentional "duplication" for performance + audit:
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                         PRODUCTS TABLE                              │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │ current_stock: 75  ← Fast O(1) lookup for "how many now?"   │   │
+│  └─────────────────────────────────────────────────────────────┘   │
+│                              │                                      │
+│                              │ 1:N                                  │
+│                              ▼                                      │
+│                   INVENTORY_MOVEMENTS TABLE                         │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │ Movement 1: ENTRY  +100  prev=0   new=100  (PURCHASE)       │   │
+│  │ Movement 2: EXIT   -20   prev=100 new=80   (SALE)           │   │
+│  │ Movement 3: EXIT   -5    prev=80  new=75   (DAMAGE)         │   │
+│  │                                                              │   │
+│  │ ← Complete audit trail: WHO did WHAT, WHEN, and WHY        │   │
+│  └─────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────┘
+
+Benefits:
+  • Products.current_stock → Instant queries (no SUM aggregation)
+  • Movements → Full audit history for accounting/compliance
+  • previous_stock/new_stock → Verify chain integrity
+  • Can detect discrepancies: SUM(movements) ≠ current_stock
+```
+
+### 9.5 N+1 Query Prevention (Batch Fetching)
+
+When listing movements, we need to include product name and SKU (denormalized):
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    PROBLEM: N+1 Queries                             │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  Query 1: SELECT * FROM inventory_movements LIMIT 20                │
+│  Query 2: SELECT name, sku FROM products WHERE id = 'prod-1'       │
+│  Query 3: SELECT name, sku FROM products WHERE id = 'prod-2'       │
+│  Query 4: SELECT name, sku FROM products WHERE id = 'prod-3'       │
+│  ... (N more queries)                                               │
+│                                                                     │
+│  Total: 1 + N queries (very slow for large N)                      │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────┐
+│                    SOLUTION: Batch Fetching                         │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  1. Fetch all movements                                             │
+│  2. Collect unique product_ids: {prod-1, prod-2, prod-3}           │
+│  3. Batch fetch products: SELECT * FROM products WHERE id IN (...)  │
+│  4. Build lookup map: { 'prod-1': {name, sku}, ... }               │
+│  5. Enrich each movement from map                                   │
+│                                                                     │
+│  Total: 2 queries (constant, regardless of N)                       │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**Implementation in `InventoryRepository`:**
+
+```python
+def _enrich_movements_batch(self, movements_data: list[dict]) -> list[MovementResponse]:
+    # Collect unique product IDs
+    product_ids = {m["product_id"] for m in movements_data}
+    
+    # Batch fetch all products
+    products_map = self._fetch_products_batch(product_ids)
+    
+    # Enrich each movement
+    for data in movements_data:
+        product_info = products_map.get(data["product_id"], {})
+        data["product_name"] = product_info.get("name")
+        data["product_sku"] = product_info.get("sku")
+    ...
+```
+
+### 9.6 Dependency Injection Flow
 
 ```python
 # api/deps.py
@@ -785,23 +930,39 @@ async def list_products(
 ### 10.1 Exception Hierarchy
 
 ```
-BaseAPIException (core/exceptions.py)
-├── NotFoundError
+DomainError (core/exceptions.py)
+│
+├── EntityNotFoundError (404)
 │   ├── ProductNotFoundError
 │   ├── CategoryNotFoundError
 │   └── SaleNotFoundError
 │
-├── ValidationError
-│   ├── DuplicateSKUError
-│   ├── InvalidQuantityError
-│   └── InsufficientStockError
+├── ValidationError (422)
+│   ├── DuplicateEntityError (409)
+│   │   └── DuplicateSKUError
+│   └── InvalidPriceRangeError
 │
-├── ConflictError
-│   └── CategoryHasProductsError
+├── BusinessRuleError (400)
+│   ├── InsufficientStockError
+│   ├── InvalidOperationError
+│   └── SaleAlreadyCancelledError
 │
-└── DatabaseError
-    └── ConnectionError
+├── DatabaseError (500)
+│   ├── ConnectionError
+│   ├── TransactionError
+│   └── UniqueConstraintViolationError (409)
+│
+└── ConfigurationError (500)
+    └── InvalidDatabaseModeError
 ```
+
+**Exception Handlers (`core/exception_handlers.py`):**
+
+| Exception Type | HTTP Status | Response Format |
+|----------------|-------------|-----------------|
+| `DomainError` | from exception | `{"success": false, "error": {...}}` |
+| `ValidationError` (Pydantic) | 422 | `{"success": false, "error": {...}}` |
+| `UniqueViolation` (psycopg) | 409 | `{"success": false, "error": {...}}` |
 
 ### 10.2 Exception Handler
 
@@ -1004,28 +1165,34 @@ CORS_ORIGINS = [
 comercial_comarapa/
 │
 ├── main.py
-│   └── imports: config, api.v1.router, core.exceptions
+│   └── imports: config, api.v1.router, core.exception_handlers, core.logging, db.database
 │
 ├── config.py
 │   └── imports: pydantic_settings
 │
 ├── api/v1/
 │   ├── router.py
-│   │   └── imports: products, categories, inventory, sales
+│   │   └── imports: products, categories, inventory
+│   │
+│   ├── deps.py
+│   │   └── imports: db.database, services.*, db.repositories.*
 │   │
 │   └── products.py (example)
-│       └── imports: models.product, services.product_service, api.deps
+│       └── imports: models.product, models.common, api.v1.deps
 │
 ├── services/
-│   └── product_service.py
-│       └── imports: models.product, db.repositories.product_repo, core.exceptions
+│   ├── product_service.py
+│   │   └── imports: db.repositories.product, db.repositories.category, core.exceptions
+│   │
+│   └── inventory_service.py
+│       └── imports: db.repositories.inventory, db.repositories.product, core.exceptions
 │
 ├── db/
 │   ├── database.py
 │   │   └── imports: config, local_client, pool, whitelist, health, supabase
 │   │
 │   ├── local_client.py
-│   │   └── imports: pool, whitelist, core.exceptions
+│   │   └── imports: pool, whitelist, core.exceptions, psycopg.sql
 │   │
 │   ├── pool.py
 │   │   └── imports: config, psycopg_pool
@@ -1039,10 +1206,20 @@ comercial_comarapa/
 │   ├── supabase.py
 │   │   └── imports: supabase, config
 │   │
-│   └── repositories/product_repo.py
-│       └── imports: db.repositories.base, models.product
+│   └── repositories/
+│       ├── base.py
+│       │   └── imports: core.protocols, core.logging, models.common
+│       │
+│       ├── product.py
+│       │   └── imports: base, models.product, core.logging
+│       │
+│       └── inventory.py
+│           └── imports: core.logging, models.inventory, models.common
 │
 ├── models/
+│   ├── common.py
+│   │   └── imports: pydantic
+│   │
 │   └── product.py
 │       └── imports: pydantic, models.common
 │
@@ -1050,8 +1227,14 @@ comercial_comarapa/
     ├── exceptions.py
     │   └── imports: (none - base module)
     │
-    └── responses.py
-        └── imports: models.common
+    ├── exception_handlers.py
+    │   └── imports: fastapi, pydantic, core.exceptions, models.common
+    │
+    ├── protocols.py
+    │   └── imports: typing.Protocol
+    │
+    └── logging.py
+        └── imports: structlog
 ```
 
 ---
@@ -1077,4 +1260,5 @@ comercial_comarapa/
 |---------|------|--------|---------|
 | 1.0 | 2026-01-02 | - | Initial architecture document |
 | 1.1 | 2026-01-02 | - | Updated db/ module structure after refactoring |
+| 1.2 | 2026-01-02 | - | Added atomic operations, inventory patterns, updated exception hierarchy, fixed project structure |
 
