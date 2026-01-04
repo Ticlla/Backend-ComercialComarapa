@@ -12,36 +12,66 @@ from comercial_comarapa.core.exceptions import ValidationError
 # ALLOWED TABLES AND COLUMNS (Whitelist for SQL Injection Prevention)
 # =============================================================================
 
-ALLOWED_TABLES = frozenset({
-    "categories",
-    "products",
-    "inventory_movements",
-    "sales",
-    "sale_items",
-    # Views
-    "v_low_stock_products",
-    "v_daily_sales_summary",
-})
+ALLOWED_TABLES = frozenset(
+    {
+        "categories",
+        "products",
+        "inventory_movements",
+        "sales",
+        "sale_items",
+        # Views
+        "v_low_stock_products",
+        "v_daily_sales_summary",
+    }
+)
 
-ALLOWED_COLUMNS = frozenset({
-    # Common
-    "id", "created_at", "updated_at", "created_by",
-    # Categories
-    "name", "description",
-    # Products
-    "sku", "category_id", "unit_price", "cost_price",
-    "current_stock", "min_stock_level", "is_active",
-    # Inventory movements
-    "product_id", "movement_type", "quantity", "reason",
-    "reference_id", "notes", "previous_stock", "new_stock",
-    # Sales
-    "sale_number", "sale_date", "subtotal", "discount", "tax", "total", "status",
-    # Sale items
-    "sale_id",
-    # Views
-    "category_name", "units_needed",  # v_low_stock_products
-    "sale_day", "total_transactions", "gross_sales", "total_discounts", "net_sales",  # v_daily_sales_summary
-})
+ALLOWED_COLUMNS = frozenset(
+    {
+        # Common
+        "id",
+        "created_at",
+        "updated_at",
+        "created_by",
+        # Categories
+        "name",
+        "description",
+        # Products
+        "sku",
+        "category_id",
+        "unit_price",
+        "cost_price",
+        "current_stock",
+        "min_stock_level",
+        "is_active",
+        # Inventory movements
+        "product_id",
+        "movement_type",
+        "quantity",
+        "reason",
+        "reference_id",
+        "notes",
+        "previous_stock",
+        "new_stock",
+        # Sales
+        "sale_number",
+        "sale_date",
+        "subtotal",
+        "discount",
+        "tax",
+        "total",
+        "status",
+        # Sale items
+        "sale_id",
+        # Views
+        "category_name",
+        "units_needed",  # v_low_stock_products
+        "sale_day",
+        "total_transactions",
+        "gross_sales",
+        "total_discounts",
+        "net_sales",  # v_daily_sales_summary
+    }
+)
 
 
 def validate_identifier(name: str, allowed: frozenset[str], kind: str) -> str:
@@ -106,5 +136,3 @@ def validate_columns(columns: str) -> str:
                 details={"column": col},
             )
     return columns
-
-

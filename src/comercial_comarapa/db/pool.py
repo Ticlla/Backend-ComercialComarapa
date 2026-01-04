@@ -64,7 +64,3 @@ def get_pool() -> ConnectionPool:
 def close_pool() -> None:
     """Close the connection pool."""
     PoolManager().close()
-
-
-
-

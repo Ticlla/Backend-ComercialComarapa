@@ -80,4 +80,3 @@ async def check_supabase_connection() -> dict:
             "status": "error",
             "message": f"Supabase connection failed: {error_msg}",
         }
-

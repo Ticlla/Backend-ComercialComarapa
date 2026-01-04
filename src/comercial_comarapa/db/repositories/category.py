@@ -50,13 +50,7 @@ class CategoryRepository(BaseRepository[CategoryResponse, CategoryCreate, Catego
         Returns:
             Category if found, None otherwise.
         """
-        result = (
-            self.db.table(self.table_name)
-            .select("*")
-            .eq("name", name)
-            .single()
-            .execute()
-        )
+        result = self.db.table(self.table_name).select("*").eq("name", name).single().execute()
 
         if result.data:
             return self.response_model.model_validate(result.data)
@@ -79,7 +73,3 @@ class CategoryRepository(BaseRepository[CategoryResponse, CategoryCreate, Catego
 
         result = query.execute()
         return len(result.data or []) > 0
-
-
-
-

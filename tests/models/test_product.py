@@ -127,8 +127,3 @@ class TestProductFilter:
         """Can search by term."""
         filter_params = ProductFilter(search="coca")
         assert filter_params.search == "coca"
-
-
-
-
-

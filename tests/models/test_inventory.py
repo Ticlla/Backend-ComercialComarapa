@@ -125,8 +125,3 @@ class TestMovementEnums:
         assert MovementReason.DAMAGE.value == "DAMAGE"
         assert MovementReason.CORRECTION.value == "CORRECTION"
         assert MovementReason.OTHER.value == "OTHER"
-
-
-
-
-

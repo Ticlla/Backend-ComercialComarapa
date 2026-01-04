@@ -77,8 +77,3 @@ class TestCategoryResponse:
         response = CategoryResponse(**data)
         assert response.name == "Bebidas"
         assert response.id == data["id"]
-
-
-
-
-

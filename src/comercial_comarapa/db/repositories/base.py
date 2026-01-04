@@ -72,11 +72,7 @@ class BaseRepository[T: BaseModel, C: BaseModel, U: BaseModel]:
         start = time.perf_counter()
 
         result = (
-            self.db.table(self.table_name)
-            .select("*")
-            .eq("id", str(entity_id))
-            .single()
-            .execute()
+            self.db.table(self.table_name).select("*").eq("id", str(entity_id)).single().execute()
         )
 
         duration_ms = (time.perf_counter() - start) * 1000
@@ -238,11 +234,7 @@ class BaseRepository[T: BaseModel, C: BaseModel, U: BaseModel]:
             # Nothing to update, return current entity
             return self.get_by_id(entity_id)
 
-        result = (
-            self.db.table(self.table_name)
-            .eq("id", str(entity_id))
-            .update(update_data)
-        ).data
+        result = (self.db.table(self.table_name).eq("id", str(entity_id)).update(update_data)).data
 
         duration_ms = (time.perf_counter() - start) * 1000
         log_db_query("UPDATE", self.table_name, duration_ms, id=str(entity_id))
@@ -282,11 +274,7 @@ class BaseRepository[T: BaseModel, C: BaseModel, U: BaseModel]:
 
         start = time.perf_counter()
 
-        result = (
-            self.db.table(self.table_name)
-            .eq("id", str(entity_id))
-            .delete()
-        ).data
+        result = (self.db.table(self.table_name).eq("id", str(entity_id)).delete()).data
 
         duration_ms = (time.perf_counter() - start) * 1000
         log_db_query("DELETE", self.table_name, duration_ms, id=str(entity_id))
@@ -315,11 +303,6 @@ class BaseRepository[T: BaseModel, C: BaseModel, U: BaseModel]:
             True if entity exists, False otherwise.
         """
         result = (
-            self.db.table(self.table_name)
-            .select("id")
-            .eq("id", str(entity_id))
-            .single()
-            .execute()
+            self.db.table(self.table_name).select("id").eq("id", str(entity_id)).single().execute()
         )
         return result.data is not None
-

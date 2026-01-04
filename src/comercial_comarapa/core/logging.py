@@ -159,4 +159,3 @@ def log_error(
         exc_info=error,
         **kwargs,
     )
-

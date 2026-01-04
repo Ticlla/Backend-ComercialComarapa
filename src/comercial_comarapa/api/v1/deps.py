@@ -47,4 +47,3 @@ def get_inventory_service() -> InventoryService:
     """
     db = get_db()
     return InventoryService(db)
-

@@ -259,4 +259,3 @@ class ProductService:
         """
         logger.info("getting_low_stock_products")
         return self.repository.list_low_stock()
-

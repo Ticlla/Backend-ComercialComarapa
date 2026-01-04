@@ -26,8 +26,3 @@ def test_health_endpoint():
     assert "version" in data
     assert "timestamp" in data
     assert "database" in data
-
-
-
-
-

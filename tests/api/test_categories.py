@@ -1,4 +1,4 @@
-﻿"""Tests for Categories API endpoints."""
+"""Tests for Categories API endpoints."""
 
 from uuid import uuid4
 

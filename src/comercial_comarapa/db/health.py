@@ -51,7 +51,3 @@ async def check_db_connection() -> dict:
             "mode": settings.database_mode,
             "message": f"Database connection failed: {error_msg}",
         }
-
-
-
-

@@ -64,9 +64,7 @@ class TestGetMovementsByProduct:
         response = client.get(f"/api/v1/inventory/movements/{fake_id}")
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_get_movements_returns_list(
-        self, client: TestClient, sample_product: dict
-    ):
+    def test_get_movements_returns_list(self, client: TestClient, sample_product: dict):
         """GET movements for product returns list."""
         product_id = sample_product["id"]
 
@@ -259,9 +257,7 @@ class TestStockAdjustment:
         assert data["data"]["new_stock"] == 75
         assert data["data"]["movement_type"] == "ADJUSTMENT"
 
-    def test_stock_adjustment_updates_product(
-        self, client: TestClient, sample_product: dict
-    ):
+    def test_stock_adjustment_updates_product(self, client: TestClient, sample_product: dict):
         """Adjustment updates product's current_stock to exact value."""
         product_id = sample_product["id"]
 
@@ -291,9 +287,7 @@ class TestStockAdjustment:
         )
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_stock_adjustment_no_change_returns_400(
-        self, client: TestClient, sample_product: dict
-    ):
+    def test_stock_adjustment_no_change_returns_400(self, client: TestClient, sample_product: dict):
         """POST /adjustment with same stock value returns 400."""
         product_id = sample_product["id"]
         current_stock = sample_product["current_stock"]
@@ -315,9 +309,7 @@ class TestStockAdjustment:
 class TestMovementHistory:
     """Tests for movement history and ordering."""
 
-    def test_movements_ordered_by_date_desc(
-        self, client: TestClient, sample_product: dict
-    ):
+    def test_movements_ordered_by_date_desc(self, client: TestClient, sample_product: dict):
         """Movements are returned newest first."""
         product_id = sample_product["id"]
 
@@ -343,9 +335,7 @@ class TestMovementHistory:
         assert movements[1]["quantity"] == 20
         assert movements[2]["quantity"] == 10
 
-    def test_movement_records_previous_stock(
-        self, client: TestClient, sample_product: dict
-    ):
+    def test_movement_records_previous_stock(self, client: TestClient, sample_product: dict):
         """Movement record contains correct previous_stock."""
         product_id = sample_product["id"]
         initial_stock = sample_product["current_stock"]
@@ -366,9 +356,7 @@ class TestMovementHistory:
         assert response2.json()["data"]["previous_stock"] == initial_stock + 50
         assert response2.json()["data"]["new_stock"] == initial_stock + 75
 
-    def test_movement_includes_product_info(
-        self, client: TestClient, sample_product: dict
-    ):
+    def test_movement_includes_product_info(self, client: TestClient, sample_product: dict):
         """Movement response includes product name and SKU."""
         product_id = sample_product["id"]
 
@@ -380,4 +368,3 @@ class TestMovementHistory:
         data = response.json()["data"]
         assert data["product_name"] == sample_product["name"]
         assert data["product_sku"] == sample_product["sku"]
-

@@ -98,6 +98,18 @@ class LocalDatabaseClient:
         validate_table(table_name)
         return TableQuery(self, table_name)
 
+    def rpc(self, name: str, params: dict[str, Any]) -> RPCQuery:
+        """Call a database function (RPC).
+
+        Args:
+            name: Name of the function to call.
+            params: Dictionary of parameters to pass.
+
+        Returns:
+            RPCQuery instance for executing the call.
+        """
+        return RPCQuery(self, name, params)
+
     def execute_atomic_stock_update(
         self,
         product_id: str,
@@ -378,13 +390,9 @@ class TableQuery:
         if self._filters:
             conditions = []
             for col, op, val in self._filters:
-                conditions.append(
-                    sql.SQL("{} {} %s").format(sql.Identifier(col), sql.SQL(op))
-                )
+                conditions.append(sql.SQL("{} {} %s").format(sql.Identifier(col), sql.SQL(op)))
                 params.append(val)
-            query = sql.SQL("{} WHERE {}").format(
-                query, sql.SQL(" AND ").join(conditions)
-            )
+            query = sql.SQL("{} WHERE {}").format(query, sql.SQL(" AND ").join(conditions))
 
         # ORDER BY
         if self._order_by:
@@ -459,13 +467,9 @@ class TableQuery:
         if self._filters:
             conditions = []
             for col, op, val in self._filters:
-                conditions.append(
-                    sql.SQL("{} {} %s").format(sql.Identifier(col), sql.SQL(op))
-                )
+                conditions.append(sql.SQL("{} {} %s").format(sql.Identifier(col), sql.SQL(op)))
                 params.append(val)
-            query = sql.SQL("{} WHERE {}").format(
-                query, sql.SQL(" AND ").join(conditions)
-            )
+            query = sql.SQL("{} WHERE {}").format(query, sql.SQL(" AND ").join(conditions))
 
         with self.client.get_connection() as conn:
             try:
@@ -535,9 +539,7 @@ class TableQuery:
         for col in data:
             validate_identifier(col, ALLOWED_COLUMNS, "column")
 
-        set_items = sql.SQL(", ").join(
-            sql.SQL("{} = %s").format(sql.Identifier(k)) for k in data
-        )
+        set_items = sql.SQL(", ").join(sql.SQL("{} = %s").format(sql.Identifier(k)) for k in data)
 
         query = sql.SQL("UPDATE {} SET {}").format(
             sql.Identifier(self.table_name),
@@ -550,13 +552,9 @@ class TableQuery:
         if self._filters:
             conditions = []
             for col, op, val in self._filters:
-                conditions.append(
-                    sql.SQL("{} {} %s").format(sql.Identifier(col), sql.SQL(op))
-                )
+                conditions.append(sql.SQL("{} {} %s").format(sql.Identifier(col), sql.SQL(op)))
                 params.append(val)
-            query = sql.SQL("{} WHERE {}").format(
-                query, sql.SQL(" AND ").join(conditions)
-            )
+            query = sql.SQL("{} WHERE {}").format(query, sql.SQL(" AND ").join(conditions))
 
         query = sql.SQL("{} RETURNING *").format(query)
 
@@ -592,13 +590,9 @@ class TableQuery:
         if self._filters:
             conditions = []
             for col, op, val in self._filters:
-                conditions.append(
-                    sql.SQL("{} {} %s").format(sql.Identifier(col), sql.SQL(op))
-                )
+                conditions.append(sql.SQL("{} {} %s").format(sql.Identifier(col), sql.SQL(op)))
                 params.append(val)
-            query = sql.SQL("{} WHERE {}").format(
-                query, sql.SQL(" AND ").join(conditions)
-            )
+            query = sql.SQL("{} WHERE {}").format(query, sql.SQL(" AND ").join(conditions))
 
         query = sql.SQL("{} RETURNING *").format(query)
 
@@ -619,6 +613,55 @@ class TableQuery:
                 ) from e
 
 
+class RPCQuery:
+    """Query builder for RPC (database function) calls.
+
+    Matches the execute() interface of TableQuery for consistency.
+    """
+
+    def __init__(self, client: LocalDatabaseClient, function_name: str, params: dict[str, Any]):
+        self.client = client
+        self.function_name = function_name
+        self.params = params
+
+    def execute(self) -> QueryResult:
+        """Execute the RPC call.
+
+        Returns:
+            QueryResult with data from the function.
+
+        Raises:
+            DatabaseError: If execution fails.
+        """
+        from psycopg import sql  # noqa: PLC0415
+
+        param_keys = list(self.params.keys())
+        # Use named parameters syntax for PostgreSQL functions: func(name := val, ...)
+        param_placeholders = [sql.SQL("{} := %s").format(sql.Identifier(k)) for k in param_keys]
+
+        query = sql.SQL("SELECT * FROM {}({})").format(
+            sql.Identifier(self.function_name), sql.SQL(", ").join(param_placeholders)
+        )
+
+        with self.client.get_connection() as conn:
+            try:
+                with conn.cursor() as cursor:
+                    cursor.execute(query, [self.params[k] for k in param_keys])
+                    if cursor.description:
+                        columns = [desc[0] for desc in cursor.description]
+                        rows = cursor.fetchall()
+                        data = [dict(zip(columns, row, strict=False)) for row in rows]
+                    else:
+                        data = []
+                return QueryResult(data=data)
+            except Exception as e:
+                conn.rollback()
+                raise DatabaseError(
+                    f"RPC execution failed: {e}",
+                    {"function": self.function_name},
+                ) from e
+
+
 # =============================================================================
 # QUERY RESULT
 # =============================================================================
@@ -629,4 +672,3 @@ class QueryResult:
 
     def __init__(self, data: Any):
         self.data = data
-

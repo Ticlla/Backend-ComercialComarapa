@@ -17,8 +17,3 @@ def client() -> TestClient:
         TestClient instance for making test requests.
     """
     return TestClient(app)
-
-
-
-
-

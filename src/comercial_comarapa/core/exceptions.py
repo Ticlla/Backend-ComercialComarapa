@@ -288,4 +288,3 @@ class InvalidDatabaseModeError(ConfigurationError):
             f"Invalid DATABASE_MODE: '{mode}'. Must be 'local' or 'supabase'.",
             {"mode": mode, "valid_modes": ["local", "supabase"]},
         )
-

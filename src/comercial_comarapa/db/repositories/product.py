@@ -58,13 +58,7 @@ class ProductRepository(BaseRepository[ProductResponse, ProductCreate, ProductUp
         Returns:
             Product if found, None otherwise.
         """
-        result = (
-            self.db.table(self.table_name)
-            .select("*")
-            .eq("sku", sku)
-            .single()
-            .execute()
-        )
+        result = self.db.table(self.table_name).select("*").eq("sku", sku).single().execute()
 
         if result.data:
             return self.response_model.model_validate(result.data)
@@ -155,8 +149,11 @@ class ProductRepository(BaseRepository[ProductResponse, ProductCreate, ProductUp
         previous, new = self.db.execute_atomic_stock_update(str(product_id), delta)
         duration_ms = (time.perf_counter() - start) * 1000
         log_db_query(
-            "ATOMIC_STOCK_DELTA", self.table_name, duration_ms,
-            id=str(product_id), delta=delta,
+            "ATOMIC_STOCK_DELTA",
+            self.table_name,
+            duration_ms,
+            id=str(product_id),
+            delta=delta,
         )
         return previous, new
 
@@ -181,8 +178,11 @@ class ProductRepository(BaseRepository[ProductResponse, ProductCreate, ProductUp
         previous, new = self.db.execute_atomic_stock_set(str(product_id), new_stock)
         duration_ms = (time.perf_counter() - start) * 1000
         log_db_query(
-            "ATOMIC_STOCK_SET", self.table_name, duration_ms,
-            id=str(product_id), new_stock=new_stock,
+            "ATOMIC_STOCK_SET",
+            self.table_name,
+            duration_ms,
+            id=str(product_id),
+            new_stock=new_stock,
         )
         return previous, new
 
@@ -221,11 +221,7 @@ class ProductRepository(BaseRepository[ProductResponse, ProductCreate, ProductUp
         Returns:
             List of products in the category.
         """
-        query = (
-            self.db.table(self.table_name)
-            .select("*")
-            .eq("category_id", str(category_id))
-        )
+        query = self.db.table(self.table_name).select("*").eq("category_id", str(category_id))
 
         if not include_inactive:
             query = query.eq("is_active", True)
@@ -243,11 +239,7 @@ class ProductRepository(BaseRepository[ProductResponse, ProductCreate, ProductUp
 
         start = time.perf_counter()
 
-        result = (
-            self.db.table("v_low_stock_products")
-            .select("*")
-            .execute()
-        )
+        result = self.db.table("v_low_stock_products").select("*").execute()
 
         duration_ms = (time.perf_counter() - start) * 1000
         log_db_query("SELECT", "v_low_stock_products", duration_ms)
@@ -482,43 +474,52 @@ class ProductRepository(BaseRepository[ProductResponse, ProductCreate, ProductUp
         is_active: bool = True,
         limit: int = 20,
     ) -> list[ProductResponse]:
-        """Search products by name or SKU using database ILIKE.
+        """Search products using hybrid search (FTS + Trigram).
 
-        Searches both name and SKU columns and combines results.
+        Engineering Note: We delegate the heavy lifting to the database RPC
+        function 'search_products_hybrid' for performance and accuracy.
 
         Args:
-            term: Search term (case-insensitive).
-            is_active: Filter by active status.
+            term: Search term.
+            is_active: Filter by active status (handled by RPC).
             limit: Maximum results to return.
 
         Returns:
-            List of matching products (deduplicated).
+            List of matching products ranked by relevance.
         """
         import time  # noqa: PLC0415
 
         start = time.perf_counter()
 
-        # Search by name
-        name_results = self.search_by_name(term, is_active, limit)
+        # 1. Guard against non-string or null inputs
+        safe_term = str(term or "").strip()
 
-        # Search by SKU
-        sku_results = self.search_by_sku(term, is_active, limit)
+        # 2. Return empty immediately if term is empty to save DB resources
+        if not safe_term:
+            return []
 
-        # Combine and deduplicate by ID
-        seen_ids: set[str] = set()
-        combined: list[ProductResponse] = []
-
-        for product in name_results + sku_results:
-            product_id = str(product.id)
-            if product_id not in seen_ids:
-                seen_ids.add(product_id)
-                combined.append(product)
-                if len(combined) >= limit:
-                    break
+        # 3. Call the Hybrid Search RPC
+        # The RPC function 'search_products_hybrid' already handles:
+        # - unaccenting and trimming
+        # - active status filtering (currently hardcoded in RPC, but could be param)
+        # - FTS ranking and Trigram similarity
+        result = self.db.rpc(
+            "search_products_hybrid",
+            {
+                "search_term": safe_term,
+                "result_limit": limit,
+                "similarity_threshold": 0.15,  # Lower for better typo tolerance in longer strings
+                "is_active_filter": is_active,
+            },
+        ).execute()
 
         duration_ms = (time.perf_counter() - start) * 1000
-        log_db_query("SEARCH", self.table_name, duration_ms, term=term, results=len(combined))
+        log_db_query(
+            "SEARCH_HYBRID",
+            self.table_name,
+            duration_ms,
+            term=safe_term,
+            results=len(result.data or []),
+        )
 
-        return combined
-
-
+        return [self.response_model.model_validate(row) for row in result.data or []]

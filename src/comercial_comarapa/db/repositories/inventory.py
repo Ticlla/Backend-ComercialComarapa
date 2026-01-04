@@ -124,11 +124,7 @@ class InventoryRepository:
         # For better performance, could use raw SQL with ANY()
         for pid in product_ids:
             result = (
-                self.db.table("products")
-                .select("id, name, sku")
-                .eq("id", pid)
-                .single()
-                .execute()
+                self.db.table("products").select("id, name, sku").eq("id", pid).single().execute()
             )
             if result.data:
                 products_map[pid] = {
@@ -165,9 +161,7 @@ class InventoryRepository:
 
         return MovementResponse.model_validate(data)
 
-    def _enrich_movements_batch(
-        self, movements_data: list[dict]
-    ) -> list[MovementResponse]:
+    def _enrich_movements_batch(self, movements_data: list[dict]) -> list[MovementResponse]:
         """Enrich multiple movements with product info using batch fetch.
 
         This prevents N+1 queries by fetching all products in advance.
@@ -207,11 +201,7 @@ class InventoryRepository:
             Movement if found, None otherwise.
         """
         result = (
-            self.db.table(self.table_name)
-            .select("*")
-            .eq("id", str(movement_id))
-            .single()
-            .execute()
+            self.db.table(self.table_name).select("*").eq("id", str(movement_id)).single().execute()
         )
 
         if result.data:
@@ -328,9 +318,7 @@ class InventoryRepository:
         query = self.db.table(self.table_name).select("*")
 
         # Apply filters using shared method
-        query = self._apply_filters(
-            query, product_id, movement_type, reason, date_from, date_to
-        )
+        query = self._apply_filters(query, product_id, movement_type, reason, date_from, date_to)
 
         # Apply ordering (newest first) and pagination
         query = query.order("created_at", desc=True)
@@ -387,9 +375,6 @@ class InventoryRepository:
         query = self.db.table(self.table_name).select("id")
 
         # Apply filters using shared method
-        query = self._apply_filters(
-            query, product_id, movement_type, reason, date_from, date_to
-        )
+        query = self._apply_filters(query, product_id, movement_type, reason, date_from, date_to)
 
         return query.count()
-

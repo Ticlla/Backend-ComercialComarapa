@@ -123,4 +123,3 @@ def register_routes(app: FastAPI) -> None:
 
 # Create application instance
 app = create_app()
-

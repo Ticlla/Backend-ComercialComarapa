@@ -135,8 +135,3 @@ class TestSaleStatus:
         """SaleStatus has expected values."""
         assert SaleStatus.COMPLETED.value == "COMPLETED"
         assert SaleStatus.CANCELLED.value == "CANCELLED"
-
-
-
-
-

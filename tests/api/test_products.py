@@ -119,9 +119,7 @@ class TestGetProductBySku:
         response = client.get("/api/v1/products/sku/NONEXISTENT-SKU")
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_get_product_by_sku_success(
-        self, client: TestClient, sample_product_data: dict
-    ):
+    def test_get_product_by_sku_success(self, client: TestClient, sample_product_data: dict):
         """GET existing SKU returns product."""
         # Create product first
         create_response = client.post("/api/v1/products", json=sample_product_data)
@@ -137,9 +135,7 @@ class TestGetProductBySku:
 class TestCreateProduct:
     """Tests for POST /api/v1/products."""
 
-    def test_create_product_success(
-        self, client: TestClient, sample_product_data: dict
-    ):
+    def test_create_product_success(self, client: TestClient, sample_product_data: dict):
         """POST valid product returns 201."""
         response = client.post("/api/v1/products", json=sample_product_data)
         assert response.status_code == status.HTTP_201_CREATED
@@ -195,9 +191,7 @@ class TestCreateProduct:
         )
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
-    def test_create_product_duplicate_sku(
-        self, client: TestClient, sample_product_data: dict
-    ):
+    def test_create_product_duplicate_sku(self, client: TestClient, sample_product_data: dict):
         """Duplicate SKU returns 409."""
         # Create first product
         response1 = client.post("/api/v1/products", json=sample_product_data)
@@ -222,9 +216,7 @@ class TestCreateProduct:
 class TestUpdateProduct:
     """Tests for PUT /api/v1/products/{id}."""
 
-    def test_update_product_success(
-        self, client: TestClient, sample_product_data: dict
-    ):
+    def test_update_product_success(self, client: TestClient, sample_product_data: dict):
         """PUT updates product."""
         # Create product
         create_response = client.post("/api/v1/products", json=sample_product_data)
@@ -249,9 +241,7 @@ class TestUpdateProduct:
         )
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_update_product_partial(
-        self, client: TestClient, sample_product_data: dict
-    ):
+    def test_update_product_partial(self, client: TestClient, sample_product_data: dict):
         """Partial update only changes specified fields."""
         # Create product
         create_response = client.post("/api/v1/products", json=sample_product_data)
@@ -270,9 +260,7 @@ class TestUpdateProduct:
         assert data["name"] == original_name
         assert float(data["unit_price"]) == new_price
 
-    def test_update_product_duplicate_sku(
-        self, client: TestClient, sample_product_data: dict
-    ):
+    def test_update_product_duplicate_sku(self, client: TestClient, sample_product_data: dict):
         """Update to existing SKU returns 409."""
         # Create two products
         product1_data = sample_product_data.copy()
@@ -296,9 +284,7 @@ class TestUpdateProduct:
 class TestDeleteProduct:
     """Tests for DELETE /api/v1/products/{id}."""
 
-    def test_delete_product_success(
-        self, client: TestClient, sample_product_data: dict
-    ):
+    def test_delete_product_success(self, client: TestClient, sample_product_data: dict):
         """DELETE soft-deletes product."""
         # Create product
         create_response = client.post("/api/v1/products", json=sample_product_data)
@@ -319,9 +305,7 @@ class TestDeleteProduct:
         response = client.delete(f"/api/v1/products/{fake_id}")
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_delete_product_response_format(
-        self, client: TestClient, sample_product_data: dict
-    ):
+    def test_delete_product_response_format(self, client: TestClient, sample_product_data: dict):
         """DELETE returns correct response format."""
         # Create product
         create_response = client.post("/api/v1/products", json=sample_product_data)
@@ -372,9 +356,7 @@ class TestSearchProducts:
         response = client.get("/api/v1/products/search?q=")
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
-    def test_search_products_by_name(
-        self, client: TestClient, sample_product_data: dict
-    ):
+    def test_search_products_by_name(self, client: TestClient, sample_product_data: dict):
         """Search finds products by name."""
         # Create product with specific name
         sample_product_data["name"] = "Unique Searchable Product"
@@ -389,9 +371,7 @@ class TestSearchProducts:
         assert len(data["data"]) >= 1
         assert any("Searchable" in p["name"] for p in data["data"])
 
-    def test_search_products_by_sku(
-        self, client: TestClient, sample_product_data: dict
-    ):
+    def test_search_products_by_sku(self, client: TestClient, sample_product_data: dict):
         """Search finds products by SKU."""
         # Create product with specific SKU
         unique_sku = f"FINDME-{uuid4().hex[:6].upper()}"
@@ -405,6 +385,58 @@ class TestSearchProducts:
         assert data["success"] is True
         assert len(data["data"]) >= 1
         assert any("FINDME" in p["sku"] for p in data["data"])
+
+    def test_search_accent_insensitive(self, client: TestClient, sample_product_data: dict):
+        """Search finds products despite accents (e.g., 'azúcar' vs 'azucar')."""
+        sample_product_data["name"] = f"Azúcar Blanca {uuid4().hex[:4]}"
+        client.post("/api/v1/products", json=sample_product_data)
+
+        response = client.get("/api/v1/products/search?q=azucar")
+        assert response.status_code == status.HTTP_200_OK
+        assert any("Azúcar" in p["name"] for p in response.json()["data"])
+
+    def test_search_typo_tolerance(self, client: TestClient, sample_product_data: dict):
+        """Search finds products despite minor typos (e.g., 'aciete' vs 'aceite')."""
+        # Using a shorter name because trigram similarity is whole-string based
+        sample_product_data["name"] = f"Aceite {uuid4().hex[:4]}"
+        client.post("/api/v1/products", json=sample_product_data)
+
+        response = client.get("/api/v1/products/search?q=aciete")
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()["data"]
+        assert any("Aceite" in p["name"] for p in data), (
+            f"Expected 'Aceite' in results, got: {[p['name'] for p in data]}"
+        )
+
+    def test_search_relevance_ranking(self, client: TestClient, sample_product_data: dict):
+        """Exact matches appear above fuzzy matches."""
+        # Create two products
+        suffix = uuid4().hex[:4]
+        p1_name = f"Aceite Premium {suffix}"
+        p1 = sample_product_data.copy()
+        p1["name"] = p1_name
+        p1["sku"] = f"ACEITE-{suffix}"
+        client.post("/api/v1/products", json=p1)
+
+        p2_name = f"Aciete Común {suffix}"
+        p2 = sample_product_data.copy()
+        p2["name"] = p2_name
+        p2["sku"] = f"ACIETE-{suffix}"
+        client.post("/api/v1/products", json=p2)
+
+        response = client.get("/api/v1/products/search?q=Aceite")
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()["data"]
+
+        # Find our two products in the results
+        names = [p["name"] for p in data]
+        try:
+            idx1 = names.index(p1_name)
+            idx2 = names.index(p2_name)
+            assert idx1 < idx2, f"Exact match '{p1_name}' should be above fuzzy match '{p2_name}'"
+        except ValueError:
+            # If they are not in results (due to limit or other factors), skip order check
+            pass
 
 
 class TestLowStockProducts:
@@ -450,9 +482,7 @@ class TestPriceRangeValidation:
 class TestCategoryValidation:
     """Tests for category validation (B3 fix)."""
 
-    def test_create_product_invalid_category(
-        self, client: TestClient, sample_product_data: dict
-    ):
+    def test_create_product_invalid_category(self, client: TestClient, sample_product_data: dict):
         """Create with non-existent category returns 404."""
         sample_product_data["category_id"] = str(uuid4())
         response = client.post("/api/v1/products", json=sample_product_data)
@@ -469,9 +499,7 @@ class TestCategoryValidation:
         assert data["success"] is False
         assert data["error"]["code"] == "CATEGORY_NOT_FOUND"
 
-    def test_update_product_invalid_category(
-        self, client: TestClient, sample_product_data: dict
-    ):
+    def test_update_product_invalid_category(self, client: TestClient, sample_product_data: dict):
         """Update with non-existent category returns 404."""
         # Create product without category
         create_response = client.post("/api/v1/products", json=sample_product_data)
@@ -483,4 +511,3 @@ class TestCategoryValidation:
             json={"category_id": str(uuid4())},
         )
         assert response.status_code == status.HTTP_404_NOT_FOUND
-

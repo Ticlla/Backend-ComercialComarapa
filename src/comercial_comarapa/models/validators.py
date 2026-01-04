@@ -135,7 +135,3 @@ def uppercase_string_validator(value: str | None) -> str | None:
     if value is None:
         return None
     return value.upper()
-
-
-
-

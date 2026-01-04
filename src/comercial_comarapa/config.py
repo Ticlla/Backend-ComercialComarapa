@@ -104,4 +104,3 @@ def get_settings() -> Settings:
 
 # Convenience export
 settings = get_settings()
-

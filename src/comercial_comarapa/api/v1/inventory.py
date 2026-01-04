@@ -151,4 +151,3 @@ def stock_adjustment(
         data=movement,
         message=f"Stock adjustment successful. New stock: {movement.new_stock}",
     )
-

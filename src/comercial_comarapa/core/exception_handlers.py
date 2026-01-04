@@ -115,11 +115,13 @@ def register_exception_handlers(app: FastAPI) -> None:
         """Handle Pydantic validation errors."""
         errors = []
         for error in exc.errors():
-            errors.append({
-                "field": ".".join(str(loc) for loc in error["loc"]),
-                "message": error["msg"],
-                "type": error["type"],
-            })
+            errors.append(
+                {
+                    "field": ".".join(str(loc) for loc in error["loc"]),
+                    "message": error["msg"],
+                    "type": error["type"],
+                }
+            )
 
         return JSONResponse(
             status_code=422,
@@ -132,4 +134,3 @@ def register_exception_handlers(app: FastAPI) -> None:
                 },
             },
         )
-

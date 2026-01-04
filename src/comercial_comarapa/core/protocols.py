@@ -176,6 +176,18 @@ class TableQueryProtocol(Protocol):
         ...
 
 
+class RPCQueryProtocol(Protocol):
+    """Protocol for RPC query builders."""
+
+    def execute(self) -> QueryResultProtocol:
+        """Execute RPC query.
+
+        Returns:
+            Query result with data.
+        """
+        ...
+
+
 class DatabaseClientProtocol(Protocol):
     """Protocol for database clients.
 
@@ -190,6 +202,18 @@ class DatabaseClientProtocol(Protocol):
 
         Returns:
             Query builder for the specified table.
+        """
+        ...
+
+    def rpc(self, name: str, params: dict[str, Any]) -> RPCQueryProtocol:
+        """Call a database function (RPC).
+
+        Args:
+            name: Name of the stored procedure/function.
+            params: Dictionary of parameters to pass.
+
+        Returns:
+            Query builder to execute the RPC.
         """
         ...
 
@@ -228,4 +252,3 @@ class DatabaseClientProtocol(Protocol):
     def close(self) -> None:
         """Close database connection/pool."""
         ...
-
