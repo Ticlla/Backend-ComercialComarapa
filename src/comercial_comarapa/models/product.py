@@ -116,6 +116,10 @@ class ProductResponse(ProductBase):
         default=None,
         description="Category details (if included)",
     )
+    relevance: float | None = Field(
+        default=None,
+        description="Search relevance score (only for search results)",
+    )
 
     model_config = ConfigDict(from_attributes=True)
 
