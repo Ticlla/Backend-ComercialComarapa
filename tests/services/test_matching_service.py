@@ -73,9 +73,10 @@ class TestFindMatches:
     def test_returns_product_matches_from_db_results(self) -> None:
         """Test converts database results to ProductMatch objects."""
         mock_db = MagicMock()
+        # Include relevance scores as returned by search_products_hybrid
         mock_db.rpc.return_value.execute.return_value.data = [
-            {"id": "00000000-0000-0000-0000-000000000001", "name": "Escoba Grande", "sku": "LIM-001"},
-            {"id": "00000000-0000-0000-0000-000000000002", "name": "Escoba Mediana", "sku": "LIM-002"},
+            {"id": "00000000-0000-0000-0000-000000000001", "name": "Escoba Grande", "sku": "LIM-001", "relevance": 0.85},
+            {"id": "00000000-0000-0000-0000-000000000002", "name": "Escoba Mediana", "sku": "LIM-002", "relevance": 0.55},
         ]
 
         service = MatchingService(mock_db)
@@ -84,8 +85,10 @@ class TestFindMatches:
         assert len(result) == 2
         assert result[0].existing_product_name == "Escoba Grande"
         assert result[0].existing_product_sku == "LIM-001"
-        assert result[0].confidence == MatchConfidence.HIGH
-        assert result[1].confidence == MatchConfidence.MEDIUM
+        assert result[0].similarity_score == 0.85
+        assert result[0].confidence == MatchConfidence.HIGH  # >= 0.7
+        assert result[1].similarity_score == 0.55
+        assert result[1].confidence == MatchConfidence.MEDIUM  # >= 0.4
 
     def test_handles_db_error_gracefully(self) -> None:
         """Test returns empty list on database error."""
@@ -105,7 +108,7 @@ class TestMatchExtractionResults:
         """Test matches products from extraction results."""
         mock_db = MagicMock()
         mock_db.rpc.return_value.execute.return_value.data = [
-            {"id": "00000000-0000-0000-0000-000000000001", "name": "Escoba Grande", "sku": "LIM-001"},
+            {"id": "00000000-0000-0000-0000-000000000001", "name": "Escoba Grande", "sku": "LIM-001", "relevance": 0.75},
         ]
 
         service = MatchingService(mock_db)
@@ -179,7 +182,7 @@ class TestMatchSingleProduct:
         """Test returns MatchedProduct for single description."""
         mock_db = MagicMock()
         mock_db.rpc.return_value.execute.return_value.data = [
-            {"id": "00000000-0000-0000-0000-000000000001", "name": "Escoba Grande", "sku": "LIM-001"},
+            {"id": "00000000-0000-0000-0000-000000000001", "name": "Escoba Grande", "sku": "LIM-001", "relevance": 0.90},
         ]
 
         service = MatchingService(mock_db)
@@ -187,6 +190,7 @@ class TestMatchSingleProduct:
 
         assert result.is_new_product is False
         assert len(result.matches) > 0
+        assert result.matches[0].confidence == MatchConfidence.HIGH
 
     def test_identifies_new_product_when_no_matches(self) -> None:
         """Test identifies as new product when no matches found."""

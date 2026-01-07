@@ -143,15 +143,17 @@ class MatchingService:
 
             matches = []
             for row in result.data or []:
-                # Calculate confidence based on similarity
-                # The RPC returns results ordered by relevance
-                # We estimate similarity from position (first = best match)
-                position = len(matches)
-                estimated_similarity = max(0.3, 1.0 - (position * 0.15))
+                # Use actual relevance score from database (pg_trgm + FTS)
+                # The search_products_hybrid RPC returns 'relevance' field (0-1+)
+                relevance = float(row.get("relevance", 0.0))
 
-                if position == 0:
+                # Normalize relevance to 0-1 range (FTS can return > 1)
+                similarity_score = min(1.0, max(0.0, relevance))
+
+                # Determine confidence based on actual similarity score
+                if similarity_score >= 0.7:
                     confidence = MatchConfidence.HIGH
-                elif position <= 2:
+                elif similarity_score >= 0.4:
                     confidence = MatchConfidence.MEDIUM
                 else:
                     confidence = MatchConfidence.LOW
@@ -161,7 +163,7 @@ class MatchingService:
                         existing_product_id=row["id"],
                         existing_product_name=row["name"],
                         existing_product_sku=row["sku"],
-                        similarity_score=estimated_similarity,
+                        similarity_score=similarity_score,
                         confidence=confidence,
                     )
                 )
