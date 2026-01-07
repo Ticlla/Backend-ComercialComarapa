@@ -3,6 +3,9 @@
 This module provides the AIExtractionService class that uses
 Google Gemini Flash Vision to extract product information from
 handwritten sales invoices.
+
+Uses Jinja2 templates for dynamic prompt generation with
+categories from the database.
 """
 
 from __future__ import annotations
@@ -10,6 +13,7 @@ from __future__ import annotations
 import base64
 import json
 import time
+from typing import Any
 
 import google.generativeai as genai
 
@@ -27,80 +31,9 @@ from comercial_comarapa.models.import_extraction import (
     MatchedProduct,
     ProductMatch,
 )
+from comercial_comarapa.prompts.template_service import get_template_service
 
 logger = get_logger(__name__)
-
-# =============================================================================
-# EXTRACTION PROMPT (Spanish-optimized for handwritten invoices)
-# =============================================================================
-
-EXTRACTION_PROMPT = """Analiza esta imagen de una nota de venta/factura escrita a mano.
-
-EXTRAE la siguiente información en formato JSON:
-
-{
-  "invoice": {
-    "supplier_name": "nombre del proveedor si es visible, null si no",
-    "invoice_number": "número de factura/nota si es visible, null si no",
-    "invoice_date": "fecha si es visible en formato original, null si no"
-  },
-  "products": [
-    {
-      "quantity": 1,
-      "description": "descripción exacta del producto como está escrita",
-      "unit_price": 0.00,
-      "total_price": 0.00,
-      "suggested_category": "categoría sugerida basada en el producto"
-    }
-  ],
-  "extraction_confidence": 0.85,
-  "raw_text": "texto completo extraído de la imagen"
-}
-
-INSTRUCCIONES IMPORTANTES:
-1. Lee cuidadosamente la escritura a mano, incluso si está borrosa
-2. Mantén las descripciones de productos EXACTAMENTE como están escritas
-3. Si no puedes leer un número claramente, usa tu mejor estimación
-4. Para precios, asume formato boliviano (Bs.) si no hay símbolo
-5. Sugiere categorías como: Limpieza, Ferretería, Automotriz, Alimentos, Bebidas, Hogar, Electrónica, Ropa, Papelería, Otros
-6. extraction_confidence debe reflejar qué tan legible es la imagen (0-1)
-7. Responde SOLO con el JSON, sin texto adicional
-8. Si la imagen no es una factura/nota de venta, responde: {"error": "not_an_invoice"}
-
-CATEGORÍAS COMUNES:
-- Limpieza: escobas, mopas, detergentes, baldes, basureros
-- Ferretería: clavos, tornillos, herramientas, cables
-- Automotriz: aceites, filtros, repuestos
-- Alimentos: arroz, azúcar, aceite, fideos
-- Bebidas: gaseosas, agua, jugos
-- Hogar: platos, vasos, sartenes, ollas
-- Papelería: cuadernos, lápices, papel
-"""
-
-AUTOCOMPLETE_PROMPT = """Eres un asistente para una ferretería/tienda de variedades en Bolivia.
-
-El usuario está escribiendo el nombre de un producto: "{partial_text}"
-{context_line}
-
-Genera 3-5 sugerencias de productos que podrían coincidir.
-
-Responde en formato JSON:
-{{
-  "suggestions": [
-    {{
-      "name": "Nombre completo estandarizado del producto",
-      "description": "Descripción profesional del producto (1-2 oraciones)",
-      "category": "Categoría sugerida"
-    }}
-  ]
-}}
-
-INSTRUCCIONES:
-1. Los nombres deben ser claros y estandarizados
-2. Las descripciones deben ser útiles para el inventario
-3. Sugiere productos relevantes para una ferretería/tienda boliviana
-4. Responde SOLO con JSON válido
-"""
 
 
 class AIExtractionService:
@@ -108,10 +41,24 @@ class AIExtractionService:
 
     Uses Google Gemini Flash Vision to process handwritten invoices
     and extract structured product information.
+
+    Now supports dynamic category injection via Jinja2 templates.
+
+    Example:
+        service = AIExtractionService()
+
+        # With dynamic categories from database
+        categories = [{"name": "Limpieza", "description": "Productos de limpieza"}]
+        result = await service.extract_from_image(
+            image_base64="...",
+            categories=categories
+        )
     """
 
     def __init__(self) -> None:
         """Initialize the AI extraction service."""
+        self._template_service = get_template_service()
+
         if not settings.gemini_api_key:
             logger.warning("gemini_api_key_not_configured")
         else:
@@ -128,6 +75,7 @@ class AIExtractionService:
         image_base64: str,
         image_type: str = "image/jpeg",
         image_index: int = 0,
+        categories: list[dict[str, Any]] | None = None,
     ) -> ExtractionResult:
         """Extract products from a single invoice image.
 
@@ -135,6 +83,8 @@ class AIExtractionService:
             image_base64: Base64-encoded image data.
             image_type: MIME type of the image.
             image_index: Index of image in batch.
+            categories: Optional list of categories from database.
+                       Each dict should have 'name' and optionally 'description'.
 
         Returns:
             ExtractionResult with extracted products and metadata.
@@ -145,16 +95,26 @@ class AIExtractionService:
         if not self._is_configured():
             raise AIExtractionError("Gemini API key not configured")
 
-        logger.info("extracting_from_image", image_index=image_index)
+        logger.info(
+            "extracting_from_image",
+            image_index=image_index,
+            categories_count=len(categories) if categories else 0,
+        )
 
         try:
             # Decode base64 image
             image_data = base64.b64decode(image_base64)
 
+            # Render prompt with categories (uses Jinja2 template)
+            extraction_prompt = self._template_service.render_extraction_prompt(
+                categories=categories,
+                default_category="Otros",
+            )
+
             # Create content for Gemini
             response = self.model.generate_content(
                 [
-                    EXTRACTION_PROMPT,
+                    extraction_prompt,
                     {"mime_type": image_type, "data": image_data},
                 ],
                 generation_config=genai.GenerationConfig(
@@ -224,11 +184,13 @@ class AIExtractionService:
     async def extract_from_images_batch(
         self,
         images: list[tuple[str, str]],  # List of (base64_data, mime_type)
+        categories: list[dict[str, Any]] | None = None,
     ) -> tuple[list[ExtractionResult], int]:
         """Extract products from multiple invoice images.
 
         Args:
             images: List of (base64_data, mime_type) tuples.
+            categories: Optional list of categories for all extractions.
 
         Returns:
             Tuple of (extraction_results, processing_time_ms).
@@ -242,6 +204,7 @@ class AIExtractionService:
                     image_base64=image_data,
                     image_type=image_type,
                     image_index=idx,
+                    categories=categories,
                 )
                 results.append(result)
             except AIExtractionError as e:
@@ -285,7 +248,7 @@ class AIExtractionService:
         matched_products: list[MatchedProduct] = []
         category_counts: dict[str, DetectedCategory] = {}
 
-        # Build category lookup
+        # Build category lookup (case-insensitive)
         category_lookup = {c["name"].lower(): c for c in existing_categories}
 
         for extraction in extractions:
@@ -420,12 +383,16 @@ class AIExtractionService:
         self,
         partial_text: str,
         context: str | None = None,
+        categories: list[dict[str, Any]] | None = None,
+        max_suggestions: int = 5,
     ) -> AutocompleteResponse:
         """Get AI autocomplete suggestions for product name/description.
 
         Args:
             partial_text: Partial product name or description.
             context: Optional additional context.
+            categories: Optional list of categories from database.
+            max_suggestions: Maximum number of suggestions to return.
 
         Returns:
             AutocompleteResponse with suggestions.
@@ -436,13 +403,19 @@ class AIExtractionService:
         if not self._is_configured():
             raise AIExtractionError("Gemini API key not configured")
 
-        logger.info("getting_autocomplete", partial_text=partial_text)
+        logger.info(
+            "getting_autocomplete",
+            partial_text=partial_text,
+            categories_count=len(categories) if categories else 0,
+        )
 
         try:
-            context_line = f"\nContexto adicional: {context}" if context else ""
-            prompt = AUTOCOMPLETE_PROMPT.format(
+            # Render prompt with categories (uses Jinja2 template)
+            prompt = self._template_service.render_autocomplete_prompt(
                 partial_text=partial_text,
-                context_line=context_line,
+                categories=categories,
+                context=context,
+                max_suggestions=max_suggestions,
             )
 
             response = self.model.generate_content(
@@ -462,7 +435,7 @@ class AIExtractionService:
                     description=s.get("description", ""),
                     category=s.get("category"),
                 )
-                for s in suggestions_data[:5]
+                for s in suggestions_data[:max_suggestions]
                 if s.get("name")
             ]
 
@@ -473,4 +446,3 @@ class AIExtractionService:
         except Exception as e:
             logger.error("autocomplete_error", error=str(e))
             raise AIExtractionError(f"Autocomplete failed: {e}") from e
-

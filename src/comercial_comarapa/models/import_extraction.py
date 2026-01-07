@@ -192,3 +192,82 @@ class AutocompleteResponse(BaseModel):
         description="Up to 5 autocomplete suggestions",
     )
 
+
+# =============================================================================
+# MATCHING REQUEST/RESPONSE MODELS
+# =============================================================================
+
+
+class MatchProductRequest(BaseModel):
+    """Request to match a single product description."""
+
+    description: str = Field(
+        min_length=2,
+        max_length=500,
+        description="Product description to match against catalog",
+    )
+    suggested_category: str | None = Field(
+        default=None,
+        max_length=100,
+        description="Optional category suggestion",
+    )
+
+
+class MatchProductResponse(BaseModel):
+    """Response for product matching."""
+
+    matched: MatchedProduct = Field(description="Matched product with suggestions")
+    processing_time_ms: int = Field(description="Processing time in milliseconds")
+
+
+# =============================================================================
+# BULK CREATION MODELS
+# =============================================================================
+
+
+class BulkProductItem(BaseModel):
+    """A single product to create in bulk operation."""
+
+    name: str = Field(min_length=1, max_length=255, description="Product name")
+    description: str | None = Field(default=None, max_length=1000, description="Product description")
+    category_id: UUID | None = Field(default=None, description="Category ID")
+    category_name: str | None = Field(default=None, max_length=100, description="Category name (for new categories)")
+    unit_price: Decimal = Field(ge=0, description="Selling price")
+    cost_price: Decimal | None = Field(default=None, ge=0, description="Cost price")
+    min_stock_level: int = Field(default=5, ge=0, description="Minimum stock level")
+
+
+class BulkCreateRequest(BaseModel):
+    """Request to create multiple products at once."""
+
+    products: list[BulkProductItem] = Field(
+        min_length=1,
+        max_length=100,
+        description="Products to create (max 100)",
+    )
+    create_missing_categories: bool = Field(
+        default=True,
+        description="Auto-create categories that don't exist",
+    )
+
+
+class BulkCreateResultItem(BaseModel):
+    """Result for a single product in bulk creation."""
+
+    index: int = Field(description="Index in the original request")
+    success: bool = Field(description="Whether creation succeeded")
+    product_id: UUID | None = Field(default=None, description="Created product ID")
+    product_sku: str | None = Field(default=None, description="Generated SKU")
+    error: str | None = Field(default=None, description="Error message if failed")
+
+
+class BulkCreateResponse(BaseModel):
+    """Response for bulk product creation."""
+
+    total_requested: int = Field(description="Total products in request")
+    total_created: int = Field(description="Successfully created products")
+    total_failed: int = Field(description="Failed creations")
+    results: list[BulkCreateResultItem] = Field(description="Individual results")
+    categories_created: int = Field(default=0, description="New categories created")
+    processing_time_ms: int = Field(description="Total processing time")
+

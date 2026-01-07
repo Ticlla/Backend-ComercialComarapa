@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
+from comercial_comarapa.api.v1.deps import get_db
 from comercial_comarapa.main import app
 from comercial_comarapa.models.import_extraction import (
     AutocompleteResponse,
@@ -61,6 +62,14 @@ def sample_image_base64() -> str:
         0x01, 0xFF, 0xD9
     ])
     return base64.b64encode(jpeg_bytes).decode("utf-8")
+
+
+@pytest.fixture
+def mock_db() -> MagicMock:
+    """Create a mock database client."""
+    mock = MagicMock()
+    mock.rpc.return_value.execute.return_value.data = []
+    return mock
 
 
 @pytest.fixture
@@ -153,8 +162,19 @@ class TestExtractFromImageEndpoint:
         assert response.status_code == 400
         assert "too large" in response.json()["detail"].lower()
 
-    def test_accepts_valid_image_types(self, client: TestClient, sample_image_base64: str):
+    @patch("comercial_comarapa.api.v1.import_products.CategoryRepository")
+    def test_accepts_valid_image_types(
+        self,
+        mock_category_repo: MagicMock,
+        client: TestClient,
+        sample_image_base64: str,
+    ):
         """Test that valid image types are accepted (validation passes)."""
+        # Mock category repository
+        mock_repo_instance = MagicMock()
+        mock_repo_instance.list.return_value = ([], None)
+        mock_category_repo.return_value = mock_repo_instance
+
         valid_types = ["image/jpeg", "image/jpg", "image/png", "image/webp"]
 
         for image_type in valid_types:
@@ -170,16 +190,23 @@ class TestExtractFromImageEndpoint:
             if response.status_code == 400:
                 assert "Unsupported image type" not in response.json().get("detail", "")
 
+    @patch("comercial_comarapa.api.v1.import_products.CategoryRepository")
     @patch("comercial_comarapa.api.v1.import_products.AIExtractionService")
     def test_returns_extraction_result_on_success(
         self,
         mock_service_class: MagicMock,
+        mock_category_repo: MagicMock,
         client: TestClient,
         sample_image_base64: str,
         mock_extraction_result: ExtractionResult,
     ):
         """Test successful extraction returns proper response."""
-        # Setup mock
+        # Setup category mock
+        mock_repo_instance = MagicMock()
+        mock_repo_instance.list.return_value = ([], None)
+        mock_category_repo.return_value = mock_repo_instance
+
+        # Setup AI service mock
         mock_instance = MagicMock()
         mock_instance._is_configured.return_value = True
         mock_instance.extract_from_image = AsyncMock(return_value=mock_extraction_result)
@@ -258,8 +285,14 @@ class TestAutocompleteEndpoint:
 
         assert response.status_code == 422  # Validation error
 
-    def test_accepts_valid_request(self, client: TestClient):
+    @patch("comercial_comarapa.api.v1.import_products.CategoryRepository")
+    def test_accepts_valid_request(self, mock_category_repo: MagicMock, client: TestClient):
         """Test that valid request format is accepted."""
+        # Mock category repository
+        mock_repo_instance = MagicMock()
+        mock_repo_instance.list.return_value = ([], None)
+        mock_category_repo.return_value = mock_repo_instance
+
         response = client.post(
             "/api/v1/import/autocomplete-product",
             json={
@@ -272,14 +305,21 @@ class TestAutocompleteEndpoint:
         # May be 500 if API key not configured
         assert response.status_code != 422
 
+    @patch("comercial_comarapa.api.v1.import_products.CategoryRepository")
     @patch("comercial_comarapa.api.v1.import_products.AIExtractionService")
     def test_returns_suggestions_on_success(
         self,
         mock_service_class: MagicMock,
+        mock_category_repo: MagicMock,
         client: TestClient,
     ):
         """Test successful autocomplete returns suggestions."""
-        # Setup mock
+        # Setup category mock
+        mock_repo_instance = MagicMock()
+        mock_repo_instance.list.return_value = ([], None)
+        mock_category_repo.return_value = mock_repo_instance
+
+        # Setup AI service mock
         mock_instance = MagicMock()
         mock_instance._is_configured.return_value = True
         mock_instance.get_autocomplete_suggestions = AsyncMock(
@@ -310,4 +350,244 @@ class TestAutocompleteEndpoint:
         assert "suggestions" in data
         assert len(data["suggestions"]) == 2
         assert data["suggestions"][0]["name"] == "Escoba Metálica Industrial"
+
+
+# =============================================================================
+# MATCH PRODUCTS ENDPOINT TESTS
+# =============================================================================
+
+
+class TestMatchProductsEndpoint:
+    """Tests for POST /api/v1/import/match-products endpoint."""
+
+    def test_matches_product_description(
+        self,
+        client: TestClient,
+        mock_db: MagicMock,
+    ) -> None:
+        """Test returns matches for product description."""
+        # Mock the database RPC call
+        mock_db.rpc.return_value.execute.return_value.data = [
+            {"id": "uuid-1", "name": "Escoba Grande", "sku": "LIM-001"},
+        ]
+
+        app.dependency_overrides[get_db] = lambda: mock_db
+
+        try:
+            response = client.post(
+                "/api/v1/import/match-products",
+                json={"description": "escoba grande"},
+            )
+
+            assert response.status_code == 200
+            data = response.json()
+            assert "matched" in data
+            assert "processing_time_ms" in data
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_rejects_empty_description(self, client: TestClient) -> None:
+        """Test rejects empty or too short description."""
+        response = client.post(
+            "/api/v1/import/match-products",
+            json={"description": "a"},  # Too short
+        )
+
+        assert response.status_code == 422  # Validation error
+
+    def test_includes_suggested_category(
+        self,
+        client: TestClient,
+        mock_db: MagicMock,
+    ) -> None:
+        """Test includes suggested category in request."""
+        mock_db.rpc.return_value.execute.return_value.data = []
+
+        app.dependency_overrides[get_db] = lambda: mock_db
+
+        try:
+            response = client.post(
+                "/api/v1/import/match-products",
+                json={
+                    "description": "producto nuevo",
+                    "suggested_category": "Limpieza",
+                },
+            )
+
+            assert response.status_code == 200
+            data = response.json()
+            assert data["matched"]["is_new_product"] is True
+        finally:
+            app.dependency_overrides.clear()
+
+
+# =============================================================================
+# BULK CREATE ENDPOINT TESTS
+# =============================================================================
+
+
+class TestBulkCreateEndpoint:
+    """Tests for POST /api/v1/import/bulk-create endpoint."""
+
+    def test_creates_products_successfully(
+        self,
+        client: TestClient,
+        mock_db: MagicMock,
+    ) -> None:
+        """Test bulk creates products successfully."""
+        from uuid import UUID  # noqa: PLC0415
+
+        # Mock category list
+        mock_category = MagicMock()
+        mock_category.id = UUID("00000000-0000-0000-0000-000000000001")
+        mock_category.name = "Limpieza"
+
+        # Mock product creation
+        mock_product = MagicMock()
+        mock_product.id = UUID("00000000-0000-0000-0000-000000000002")
+        mock_product.sku = "LIM-ABC123"
+
+        with (
+            patch(
+                "comercial_comarapa.api.v1.import_products.CategoryRepository"
+            ) as mock_cat_repo,
+            patch(
+                "comercial_comarapa.api.v1.import_products.ProductRepository"
+            ) as mock_prod_repo,
+        ):
+            mock_cat_repo.return_value.list.return_value = ([mock_category], 1)
+            mock_prod_repo.return_value.create.return_value = mock_product
+
+            app.dependency_overrides[get_db] = lambda: mock_db
+
+            try:
+                response = client.post(
+                    "/api/v1/import/bulk-create",
+                    json={
+                        "products": [
+                            {
+                                "name": "Escoba Grande",
+                                "category_name": "Limpieza",
+                                "unit_price": 25.00,
+                            }
+                        ],
+                        "create_missing_categories": True,
+                    },
+                )
+
+                assert response.status_code == 201
+                data = response.json()
+                assert data["total_requested"] == 1
+                assert data["total_created"] == 1
+                assert data["total_failed"] == 0
+            finally:
+                app.dependency_overrides.clear()
+
+    def test_rejects_empty_products_list(self, client: TestClient) -> None:
+        """Test rejects empty products list."""
+        response = client.post(
+            "/api/v1/import/bulk-create",
+            json={"products": []},
+        )
+
+        assert response.status_code == 422  # Validation error
+
+    def test_handles_creation_errors_gracefully(
+        self,
+        client: TestClient,
+        mock_db: MagicMock,
+    ) -> None:
+        """Test handles individual product creation errors."""
+        from uuid import UUID  # noqa: PLC0415
+
+        mock_category = MagicMock()
+        mock_category.id = UUID("00000000-0000-0000-0000-000000000001")
+        mock_category.name = "Limpieza"
+
+        with (
+            patch(
+                "comercial_comarapa.api.v1.import_products.CategoryRepository"
+            ) as mock_cat_repo,
+            patch(
+                "comercial_comarapa.api.v1.import_products.ProductRepository"
+            ) as mock_prod_repo,
+        ):
+            mock_cat_repo.return_value.list.return_value = ([mock_category], 1)
+            mock_prod_repo.return_value.create.side_effect = Exception("DB Error")
+
+            app.dependency_overrides[get_db] = lambda: mock_db
+
+            try:
+                response = client.post(
+                    "/api/v1/import/bulk-create",
+                    json={
+                        "products": [
+                            {
+                                "name": "Producto Fallido",
+                                "unit_price": 10.00,
+                            }
+                        ],
+                    },
+                )
+
+                assert response.status_code == 201
+                data = response.json()
+                assert data["total_created"] == 0
+                assert data["total_failed"] == 1
+                assert data["results"][0]["success"] is False
+                assert data["results"][0]["error"] is not None
+            finally:
+                app.dependency_overrides.clear()
+
+    def test_auto_creates_missing_categories(
+        self,
+        client: TestClient,
+        mock_db: MagicMock,
+    ) -> None:
+        """Test auto-creates categories when enabled."""
+        from uuid import UUID  # noqa: PLC0415
+
+        mock_product = MagicMock()
+        mock_product.id = UUID("00000000-0000-0000-0000-000000000002")
+        mock_product.sku = "NEW-ABC123"
+
+        mock_new_category = MagicMock()
+        mock_new_category.id = UUID("00000000-0000-0000-0000-000000000001")
+        mock_new_category.name = "Nueva Categoría"
+
+        with (
+            patch(
+                "comercial_comarapa.api.v1.import_products.CategoryRepository"
+            ) as mock_cat_repo,
+            patch(
+                "comercial_comarapa.api.v1.import_products.ProductRepository"
+            ) as mock_prod_repo,
+        ):
+            # No existing categories
+            mock_cat_repo.return_value.list.return_value = ([], 0)
+            mock_cat_repo.return_value.create.return_value = mock_new_category
+            mock_prod_repo.return_value.create.return_value = mock_product
+
+            app.dependency_overrides[get_db] = lambda: mock_db
+
+            try:
+                response = client.post(
+                    "/api/v1/import/bulk-create",
+                    json={
+                        "products": [
+                            {
+                                "name": "Producto Nuevo",
+                                "category_name": "Nueva Categoría",
+                                "unit_price": 50.00,
+                            }
+                        ],
+                        "create_missing_categories": True,
+                    },
+                )
+
+                assert response.status_code == 201
+                data = response.json()
+                assert data["categories_created"] == 1
+            finally:
+                app.dependency_overrides.clear()
 

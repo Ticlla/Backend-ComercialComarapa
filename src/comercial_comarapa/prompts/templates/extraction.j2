@@ -1,0 +1,53 @@
+Analiza esta imagen de una nota de venta/factura escrita a mano.
+
+EXTRAE la siguiente información en formato JSON:
+
+{
+  "invoice": {
+    "supplier_name": "nombre del proveedor si es visible, null si no",
+    "invoice_number": "número de factura/nota si es visible, null si no",
+    "invoice_date": "fecha si es visible en formato original, null si no"
+  },
+  "products": [
+    {
+      "quantity": 1,
+      "description": "descripción exacta del producto como está escrita",
+      "unit_price": 0.00,
+      "total_price": 0.00,
+      "suggested_category": "categoría sugerida de la lista proporcionada"
+    }
+  ],
+  "extraction_confidence": 0.85,
+  "raw_text": "texto completo extraído de la imagen"
+}
+
+INSTRUCCIONES IMPORTANTES:
+1. Lee cuidadosamente la escritura a mano, incluso si está borrosa
+2. Mantén las descripciones de productos EXACTAMENTE como están escritas
+3. Si no puedes leer un número claramente, usa tu mejor estimación
+4. Para precios, asume formato boliviano (Bs.) si no hay símbolo
+5. Para suggested_category, USA ÚNICAMENTE las categorías de la lista siguiente
+6. extraction_confidence debe reflejar qué tan legible es la imagen (0-1)
+7. Responde SOLO con el JSON, sin texto adicional
+8. Si la imagen no es una factura/nota de venta, responde: {"error": "not_an_invoice"}
+
+{% if categories %}
+CATEGORÍAS DISPONIBLES (usa solo estas):
+{% for category in categories %}
+- {{ category.name }}{% if category.description %}: {{ category.description }}{% endif %}
+
+{% endfor %}
+{% else %}
+CATEGORÍAS COMUNES:
+- Limpieza: escobas, mopas, detergentes, baldes, basureros
+- Ferretería: clavos, tornillos, herramientas, cables
+- Automotriz: aceites, filtros, repuestos
+- Alimentos: arroz, azúcar, aceite, fideos
+- Bebidas: gaseosas, agua, jugos
+- Hogar: platos, vasos, sartenes, ollas
+- Papelería: cuadernos, lápices, papel
+- Otros: productos que no encajen en las categorías anteriores
+{% endif %}
+
+Si el producto no encaja en ninguna categoría, usa "{{ default_category | default('Otros') }}".
+

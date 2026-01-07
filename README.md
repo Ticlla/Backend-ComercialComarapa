@@ -61,8 +61,18 @@ Backend-ComercialComarapa/
 │       ├── main.py             # FastAPI application
 │       ├── config.py           # Settings (pydantic-settings)
 │       ├── api/v1/             # API routers
+│       │   ├── import_products.py  # Product import endpoints
+│       │   └── ...
 │       ├── models/             # Pydantic schemas
+│       │   ├── import_extraction.py # Import/extraction models
+│       │   └── ...
 │       ├── services/           # Business logic
+│       │   ├── ai_extraction_service.py  # AI Vision extraction
+│       │   ├── matching_service.py       # DB fuzzy matching
+│       │   └── ...
+│       ├── prompts/            # AI prompt templates
+│       │   ├── template_service.py  # Jinja2 rendering
+│       │   └── templates/           # .j2 templates
 │       ├── db/                 # Database layer
 │       │   ├── database.py     # Client factory & get_db()
 │       │   ├── local_client.py # LocalDatabaseClient, TableQuery
@@ -158,6 +168,8 @@ Configuration is managed via environment files. Each Hatch environment loads its
 | `POST` | `/api/v1/import/extract-from-image` | Extract products from single image |
 | `POST` | `/api/v1/import/extract-from-images` | Batch extraction (up to 20 images) |
 | `POST` | `/api/v1/import/autocomplete-product` | AI autocomplete suggestions |
+| `POST` | `/api/v1/import/match-products` | Match product against catalog (pg_trgm) |
+| `POST` | `/api/v1/import/bulk-create` | Bulk create products & categories |
 | `GET` | `/api/v1/import/health` | Import service health check |
 
 *See `/docs` for complete API documentation.*
