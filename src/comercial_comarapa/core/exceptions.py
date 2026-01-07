@@ -288,3 +288,24 @@ class InvalidDatabaseModeError(ConfigurationError):
             f"Invalid DATABASE_MODE: '{mode}'. Must be 'local' or 'supabase'.",
             {"mode": mode, "valid_modes": ["local", "supabase"]},
         )
+
+
+# =============================================================================
+# AI/EXTERNAL SERVICE ERRORS (500)
+# =============================================================================
+
+
+class ExternalServiceError(DomainError):
+    """Raised when an external service call fails."""
+
+    code = "EXTERNAL_SERVICE_ERROR"
+    status_code = 500
+
+
+class AIExtractionError(ExternalServiceError):
+    """Raised when AI extraction from image fails."""
+
+    code = "AI_EXTRACTION_ERROR"
+
+    def __init__(self, message: str = "AI extraction failed"):
+        super().__init__(message)

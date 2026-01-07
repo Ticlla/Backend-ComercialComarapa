@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     """
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=(".env", ".env.development"),
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
@@ -63,6 +63,10 @@ class Settings(BaseSettings):
 
     # CORS
     cors_origins: str = Field(default="http://localhost:3000,http://localhost:5173")
+
+    # AI Configuration (Gemini)
+    gemini_api_key: str = Field(default="")
+    gemini_model: str = Field(default="gemini-flash-latest")
 
     @property
     def cors_origins_list(self) -> list[str]:

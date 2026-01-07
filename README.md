@@ -129,6 +129,8 @@ Configuration is managed via environment files. Each Hatch environment loads its
 | `APP_ENV` | Environment name | `development` |
 | `DEBUG` | Enable debug mode | `true` / `false` |
 | `CORS_ORIGINS` | Allowed CORS origins | `http://localhost:3000` |
+| `GEMINI_API_KEY` | Google Gemini API key (for AI extraction) | `AIza...` |
+| `GEMINI_MODEL` | Gemini model to use | `gemini-flash-latest` |
 
 ## 📚 API Endpoints
 
@@ -139,7 +141,7 @@ Configuration is managed via environment files. Each Hatch environment loads its
 | `GET` | `/` | API information |
 | `GET` | `/health` | Health check with DB status |
 
-### Products (Phase 1)
+### Products
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -148,6 +150,15 @@ Configuration is managed via environment files. Each Hatch environment loads its
 | `POST` | `/api/v1/products` | Create product |
 | `PUT` | `/api/v1/products/{id}` | Update product |
 | `DELETE` | `/api/v1/products/{id}` | Delete product |
+
+### Product Import (AI Extraction)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/v1/import/extract-from-image` | Extract products from single image |
+| `POST` | `/api/v1/import/extract-from-images` | Batch extraction (up to 20 images) |
+| `POST` | `/api/v1/import/autocomplete-product` | AI autocomplete suggestions |
+| `GET` | `/api/v1/import/health` | Import service health check |
 
 *See `/docs` for complete API documentation.*
 

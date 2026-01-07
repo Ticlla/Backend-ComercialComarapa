@@ -422,6 +422,168 @@ curl "http://localhost:8000/api/v1/sales/summary/daily?date=2026-01-02"
 
 ---
 
+## Product Import API (AI Extraction)
+
+### Check Import Service Health
+
+```bash
+curl http://localhost:8000/api/v1/import/health
+```
+
+**Response (200 OK):**
+```json
+{
+  "status": "healthy",
+  "ai_configured": true,
+  "ai_model": "gemini-2.0-flash",
+  "max_images_per_batch": 20,
+  "max_image_size_mb": 10
+}
+```
+
+### Extract Products from Single Image (Base64)
+
+```bash
+curl -X POST http://localhost:8000/api/v1/import/extract-from-image \
+  -H "Content-Type: application/json" \
+  -d '{
+    "image_base64": "<base64-encoded-image>",
+    "image_type": "image/jpeg"
+  }'
+```
+
+**Response (200 OK):**
+```json
+{
+  "invoice": {
+    "supplier_name": "Distribuidora Sanchez",
+    "invoice_number": "000498",
+    "invoice_date": "06/01/2026",
+    "image_index": 0
+  },
+  "products": [
+    {
+      "quantity": 12,
+      "description": "Mopa colores",
+      "unit_price": 40.00,
+      "total_price": 480.00,
+      "suggested_category": "Limpieza"
+    },
+    {
+      "quantity": 5,
+      "description": "Escoba paja gde",
+      "unit_price": 25.00,
+      "total_price": 125.00,
+      "suggested_category": "Limpieza"
+    }
+  ],
+  "extraction_confidence": 0.92,
+  "raw_text": "Distribuidora Sanchez\nN° 000498\n..."
+}
+```
+
+### Extract Products from Multiple Images (File Upload)
+
+```bash
+curl -X POST http://localhost:8000/api/v1/import/extract-from-images \
+  -F "files=@invoice1.jpg" \
+  -F "files=@invoice2.jpg" \
+  -F "files=@invoice3.jpg"
+```
+
+**Response (200 OK):**
+```json
+{
+  "extractions": [
+    {
+      "invoice": { "image_index": 0, ... },
+      "products": [...],
+      "extraction_confidence": 0.92
+    },
+    {
+      "invoice": { "image_index": 1, ... },
+      "products": [...],
+      "extraction_confidence": 0.88
+    }
+  ],
+  "matched_products": [
+    {
+      "extracted": {
+        "quantity": 12,
+        "description": "Mopa colores",
+        "unit_price": 40.00,
+        "total_price": 480.00,
+        "suggested_category": "Limpieza"
+      },
+      "matches": [
+        {
+          "existing_product_id": "uuid",
+          "existing_product_name": "Mopa Color Grande",
+          "existing_product_sku": "LIM-001",
+          "similarity_score": 0.85,
+          "confidence": "high"
+        }
+      ],
+      "is_new_product": false,
+      "suggested_name": "Mopa Colores"
+    }
+  ],
+  "detected_categories": [
+    {
+      "name": "Limpieza",
+      "exists_in_catalog": true,
+      "existing_category_id": "uuid",
+      "product_count": 8
+    },
+    {
+      "name": "Automotriz",
+      "exists_in_catalog": false,
+      "existing_category_id": null,
+      "product_count": 2
+    }
+  ],
+  "total_products": 25,
+  "total_images_processed": 3,
+  "processing_time_ms": 12500
+}
+```
+
+### AI Autocomplete for Product Name/Description
+
+```bash
+curl -X POST http://localhost:8000/api/v1/import/autocomplete-product \
+  -H "Content-Type: application/json" \
+  -d '{
+    "partial_text": "Escoba met",
+    "context": "ferretería, limpieza industrial"
+  }'
+```
+
+**Response (200 OK):**
+```json
+{
+  "suggestions": [
+    {
+      "name": "Escoba Metálica Industrial",
+      "description": "Escoba de metal resistente para uso industrial, mango de acero inoxidable, ideal para talleres y fábricas.",
+      "category": "Limpieza"
+    },
+    {
+      "name": "Escoba Metálica Grande",
+      "description": "Escoba con base metálica reforzada, ideal para exteriores y patios, cerdas de nylon resistentes.",
+      "category": "Limpieza"
+    },
+    {
+      "name": "Escoba Metálica Pequeña",
+      "description": "Escoba compacta con estructura metálica, perfecta para espacios reducidos y limpieza detallada.",
+      "category": "Limpieza"
+    }
+  ]
+}
+```
+
+---
+
 ## Health Check
 
 ```bash
