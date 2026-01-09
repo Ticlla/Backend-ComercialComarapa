@@ -1,18 +1,18 @@
-"""Tests for Inventory API endpoints."""
+"""Tests for Inventory API endpoints.
 
+All tests use mock database - NO real database calls.
+"""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 from uuid import uuid4
 
 import pytest
 from fastapi import status
-from fastapi.testclient import TestClient
 
-from comercial_comarapa.main import app
-
-
-@pytest.fixture
-def client() -> TestClient:
-    """Create test client."""
-    return TestClient(app)
+if TYPE_CHECKING:
+    from fastapi.testclient import TestClient
 
 
 @pytest.fixture
@@ -31,12 +31,14 @@ def sample_product(client: TestClient) -> dict:
 class TestListMovements:
     """Tests for GET /api/v1/inventory/movements."""
 
-    def test_list_movements_returns_200(self, client: TestClient):
+    def test_list_movements_returns_200(self, client: TestClient) -> None:
         """GET /movements returns 200."""
         response = client.get("/api/v1/inventory/movements")
         assert response.status_code == status.HTTP_200_OK
 
-    def test_list_movements_returns_paginated_response(self, client: TestClient):
+    def test_list_movements_returns_paginated_response(
+        self, client: TestClient
+    ) -> None:
         """Response includes pagination metadata."""
         response = client.get("/api/v1/inventory/movements")
         data = response.json()
@@ -46,7 +48,7 @@ class TestListMovements:
         assert "pagination" in data
         assert data["success"] is True
 
-    def test_list_movements_pagination_params(self, client: TestClient):
+    def test_list_movements_pagination_params(self, client: TestClient) -> None:
         """Pagination parameters are applied."""
         response = client.get("/api/v1/inventory/movements?page=1&page_size=5")
         data = response.json()
@@ -58,13 +60,15 @@ class TestListMovements:
 class TestGetMovementsByProduct:
     """Tests for GET /api/v1/inventory/movements/{product_id}."""
 
-    def test_get_movements_product_not_found(self, client: TestClient):
+    def test_get_movements_product_not_found(self, client: TestClient) -> None:
         """GET movements for non-existent product returns 404."""
         fake_id = uuid4()
         response = client.get(f"/api/v1/inventory/movements/{fake_id}")
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_get_movements_returns_list(self, client: TestClient, sample_product: dict):
+    def test_get_movements_returns_list(
+        self, client: TestClient, sample_product: dict
+    ) -> None:
         """GET movements for product returns list."""
         product_id = sample_product["id"]
 
@@ -86,7 +90,9 @@ class TestGetMovementsByProduct:
 class TestStockEntry:
     """Tests for POST /api/v1/inventory/entry."""
 
-    def test_stock_entry_success(self, client: TestClient, sample_product: dict):
+    def test_stock_entry_success(
+        self, client: TestClient, sample_product: dict
+    ) -> None:
         """POST /entry increases product stock."""
         product_id = sample_product["id"]
         initial_stock = sample_product["current_stock"]
@@ -109,7 +115,7 @@ class TestStockEntry:
         assert data["data"]["movement_type"] == "ENTRY"
         assert data["data"]["quantity"] == 50
 
-    def test_stock_entry_product_not_found(self, client: TestClient):
+    def test_stock_entry_product_not_found(self, client: TestClient) -> None:
         """POST /entry with non-existent product returns 404."""
         fake_id = uuid4()
         response = client.post(
@@ -122,7 +128,9 @@ class TestStockEntry:
         )
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_stock_entry_with_notes(self, client: TestClient, sample_product: dict):
+    def test_stock_entry_with_notes(
+        self, client: TestClient, sample_product: dict
+    ) -> None:
         """POST /entry can include notes."""
         product_id = sample_product["id"]
 
@@ -139,7 +147,9 @@ class TestStockEntry:
         assert response.status_code == status.HTTP_201_CREATED
         assert response.json()["data"]["notes"] == "Initial stock from supplier"
 
-    def test_stock_entry_invalid_quantity(self, client: TestClient, sample_product: dict):
+    def test_stock_entry_invalid_quantity(
+        self, client: TestClient, sample_product: dict
+    ) -> None:
         """POST /entry with zero or negative quantity returns 422."""
         product_id = sample_product["id"]
 
@@ -153,7 +163,9 @@ class TestStockEntry:
         )
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
-    def test_stock_entry_updates_product(self, client: TestClient, sample_product: dict):
+    def test_stock_entry_updates_product(
+        self, client: TestClient, sample_product: dict
+    ) -> None:
         """Stock entry updates product's current_stock."""
         product_id = sample_product["id"]
         initial_stock = sample_product["current_stock"]
@@ -172,7 +184,9 @@ class TestStockEntry:
 class TestStockExit:
     """Tests for POST /api/v1/inventory/exit."""
 
-    def test_stock_exit_success(self, client: TestClient, sample_product: dict):
+    def test_stock_exit_success(
+        self, client: TestClient, sample_product: dict
+    ) -> None:
         """POST /exit decreases product stock."""
         product_id = sample_product["id"]
 
@@ -203,7 +217,9 @@ class TestStockExit:
         assert data["data"]["new_stock"] == current_stock - 30
         assert data["data"]["movement_type"] == "EXIT"
 
-    def test_stock_exit_insufficient_stock(self, client: TestClient, sample_product: dict):
+    def test_stock_exit_insufficient_stock(
+        self, client: TestClient, sample_product: dict
+    ) -> None:
         """POST /exit with qty > stock returns 400."""
         product_id = sample_product["id"]
 
@@ -220,7 +236,7 @@ class TestStockExit:
         data = response.json()
         assert data["error"]["code"] == "INSUFFICIENT_STOCK"
 
-    def test_stock_exit_product_not_found(self, client: TestClient):
+    def test_stock_exit_product_not_found(self, client: TestClient) -> None:
         """POST /exit with non-existent product returns 404."""
         fake_id = uuid4()
         response = client.post(
@@ -237,7 +253,9 @@ class TestStockExit:
 class TestStockAdjustment:
     """Tests for POST /api/v1/inventory/adjustment."""
 
-    def test_stock_adjustment_success(self, client: TestClient, sample_product: dict):
+    def test_stock_adjustment_success(
+        self, client: TestClient, sample_product: dict
+    ) -> None:
         """POST /adjustment sets exact stock value."""
         product_id = sample_product["id"]
 
@@ -257,7 +275,9 @@ class TestStockAdjustment:
         assert data["data"]["new_stock"] == 75
         assert data["data"]["movement_type"] == "ADJUSTMENT"
 
-    def test_stock_adjustment_updates_product(self, client: TestClient, sample_product: dict):
+    def test_stock_adjustment_updates_product(
+        self, client: TestClient, sample_product: dict
+    ) -> None:
         """Adjustment updates product's current_stock to exact value."""
         product_id = sample_product["id"]
 
@@ -274,7 +294,7 @@ class TestStockAdjustment:
         product_response = client.get(f"/api/v1/products/{product_id}")
         assert product_response.json()["data"]["current_stock"] == 42
 
-    def test_stock_adjustment_product_not_found(self, client: TestClient):
+    def test_stock_adjustment_product_not_found(self, client: TestClient) -> None:
         """POST /adjustment with non-existent product returns 404."""
         fake_id = uuid4()
         response = client.post(
@@ -287,7 +307,9 @@ class TestStockAdjustment:
         )
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_stock_adjustment_no_change_returns_400(self, client: TestClient, sample_product: dict):
+    def test_stock_adjustment_no_change_returns_400(
+        self, client: TestClient, sample_product: dict
+    ) -> None:
         """POST /adjustment with same stock value returns 400."""
         product_id = sample_product["id"]
         current_stock = sample_product["current_stock"]
@@ -309,7 +331,9 @@ class TestStockAdjustment:
 class TestMovementHistory:
     """Tests for movement history and ordering."""
 
-    def test_movements_ordered_by_date_desc(self, client: TestClient, sample_product: dict):
+    def test_movements_ordered_by_date_desc(
+        self, client: TestClient, sample_product: dict
+    ) -> None:
         """Movements are returned newest first."""
         product_id = sample_product["id"]
 
@@ -335,7 +359,9 @@ class TestMovementHistory:
         assert movements[1]["quantity"] == 20
         assert movements[2]["quantity"] == 10
 
-    def test_movement_records_previous_stock(self, client: TestClient, sample_product: dict):
+    def test_movement_records_previous_stock(
+        self, client: TestClient, sample_product: dict
+    ) -> None:
         """Movement record contains correct previous_stock."""
         product_id = sample_product["id"]
         initial_stock = sample_product["current_stock"]
@@ -356,7 +382,9 @@ class TestMovementHistory:
         assert response2.json()["data"]["previous_stock"] == initial_stock + 50
         assert response2.json()["data"]["new_stock"] == initial_stock + 75
 
-    def test_movement_includes_product_info(self, client: TestClient, sample_product: dict):
+    def test_movement_includes_product_info(
+        self, client: TestClient, sample_product: dict
+    ) -> None:
         """Movement response includes product name and SKU."""
         product_id = sample_product["id"]
 

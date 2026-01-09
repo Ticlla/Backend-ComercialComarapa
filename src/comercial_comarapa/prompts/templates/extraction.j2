@@ -1,4 +1,4 @@
-Analiza esta imagen de una nota de venta/factura escrita a mano.
+Analiza esta imagen de una nota de venta/factura escrita a mano de una ferretería/comercial en Bolivia.
 
 EXTRAE la siguiente información en formato JSON:
 
@@ -11,25 +11,40 @@ EXTRAE la siguiente información en formato JSON:
   "products": [
     {
       "quantity": 1,
-      "description": "descripción exacta del producto como está escrita",
+      "description": "nombre del producto INTERPRETADO y CORREGIDO en español correcto",
       "unit_price": 0.00,
       "total_price": 0.00,
       "suggested_category": "categoría sugerida de la lista proporcionada"
     }
   ],
   "extraction_confidence": 0.85,
-  "raw_text": "texto completo extraído de la imagen"
+  "raw_text": "texto original extraído de la imagen antes de corrección"
 }
 
-INSTRUCCIONES IMPORTANTES:
-1. Lee cuidadosamente la escritura a mano, incluso si está borrosa
-2. Mantén las descripciones de productos EXACTAMENTE como están escritas
-3. Si no puedes leer un número claramente, usa tu mejor estimación
-4. Para precios, asume formato boliviano (Bs.) si no hay símbolo
-5. Para suggested_category, USA ÚNICAMENTE las categorías de la lista siguiente
-6. extraction_confidence debe reflejar qué tan legible es la imagen (0-1)
-7. Responde SOLO con el JSON, sin texto adicional
-8. Si la imagen no es una factura/nota de venta, responde: {"error": "not_an_invoice"}
+INSTRUCCIONES CRÍTICAS PARA INTERPRETACIÓN:
+1. La escritura a mano es difícil de leer. NO copies texto ilegible literalmente.
+2. INTERPRETA el texto usando contexto del negocio (ferretería, lubricantes, automotriz, hogar).
+3. CORRIGE errores de lectura a nombres de productos REALES en español boliviano.
+4. Usa el nombre del proveedor como contexto (ej: "LUBRICANTES" = productos automotrices).
+
+EJEMPLOS DE CORRECCIÓN:
+- "Gu hidraustice" → "Gato Hidráulico"
+- "Aceite hidraulico" está correcto
+- "Siheim Västay" → probablemente "Silicona en Spray" o similar
+- "Camara GRIS" → "Cámara de Llanta" o "Cámara Gris"
+- "Borne Pl" → "Borne de Batería" o "Borne Plomo"
+- "Paqueta" → "Empaquetadura" o "Paquete"
+
+REGLAS DE PRECIOS:
+- Asume formato boliviano (Bs.) si no hay símbolo
+- Si ves números como "285", "390", "45" son precios en Bolivianos
+
+INSTRUCCIONES ADICIONALES:
+1. Para suggested_category, USA ÚNICAMENTE las categorías de la lista siguiente
+2. extraction_confidence debe reflejar qué tan legible es la imagen (0-1)
+3. Responde SOLO con el JSON, sin texto adicional
+4. Si la imagen no es una factura/nota de venta, responde: {"error": "not_an_invoice"}
+5. raw_text debe contener el texto ORIGINAL antes de tu interpretación
 
 {% if categories %}
 CATEGORÍAS DISPONIBLES (usa solo estas):
@@ -38,18 +53,20 @@ CATEGORÍAS DISPONIBLES (usa solo estas):
 
 {% endfor %}
 {% else %}
-CATEGORÍAS COMUNES:
-- Limpieza: escobas, mopas, detergentes, baldes, basureros
-- Ferretería: clavos, tornillos, herramientas, cables
-- Automotriz: aceites, filtros, repuestos
-- Alimentos: arroz, azúcar, aceite, fideos
-- Bebidas: gaseosas, agua, jugos
-- Hogar: platos, vasos, sartenes, ollas
-- Papelería: cuadernos, lápices, papel
+CATEGORÍAS COMUNES CON EJEMPLOS DE PRODUCTOS:
+- Lubricantes y Automotriz: aceite de motor, grasa, líquido de frenos, refrigerante, gato hidráulico, cámara de llanta, borne de batería, filtro de aceite, bujías, correas
+- Ferretería: clavos, tornillos, herramientas, cables, extensiones eléctricas, discos de corte, brocas, llaves, alicates, destornilladores
+- Limpieza: escobas, mopas, detergentes, baldes, basureros, trapeadores, desinfectantes
+- Electricidad: cables, interruptores, enchufes, focos, lámparas, cintas aislantes
+- Plomería: tubos, codos, llaves de paso, teflón, pegamento PVC, mangueras
+- Hogar: platos, vasos, sartenes, ollas, utensilios de cocina
+- Papelería: cuadernos, lápices, papel, carpetas
 - Otros: productos que no encajen en las categorías anteriores
 {% endif %}
 
 Si el producto no encaja en ninguna categoría, usa "{{ default_category | default('Otros') }}".
+
+RECUERDA: Tu trabajo es INTERPRETAR la escritura a mano y proporcionar nombres de productos REALES y ENTENDIBLES en español, no copiar texto ilegible.
 
 
 

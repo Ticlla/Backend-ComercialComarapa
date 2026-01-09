@@ -17,6 +17,13 @@ from typing import Any
 
 import google.generativeai as genai
 
+# TODO: Migrate to google.genai package when ready
+# The deprecated google.generativeai package doesn't properly support
+# response_schema with TypedDict. When migrating to google.genai:
+# 1. Use response_schema for structured output enforcement
+# 2. Remove defensive JSON extraction (extract_json_from_response)
+# 3. Remove list response unwrapping logic
+# See: https://github.com/google-gemini/deprecated-generative-ai-python
 from comercial_comarapa.config import settings
 from comercial_comarapa.core.exceptions import AIExtractionError
 from comercial_comarapa.core.logging import get_logger
@@ -34,6 +41,76 @@ from comercial_comarapa.models.import_extraction import (
 from comercial_comarapa.prompts.template_service import get_template_service
 
 logger = get_logger(__name__)
+
+
+def _find_json_end(text: str) -> int | None:
+    """Find the index of the closing brace of a JSON object.
+
+    Args:
+        text: Text starting with '{'.
+
+    Returns:
+        Index of closing '}' or None if not found.
+    """
+    brace_count = 0
+    in_string = False
+    escape_next = False
+
+    for i, char in enumerate(text):
+        if escape_next:
+            escape_next = False
+            continue
+        if char == "\\":
+            escape_next = True
+            continue
+        if char == '"':
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
+        if char == "{":
+            brace_count += 1
+        elif char == "}":
+            brace_count -= 1
+            if brace_count == 0:
+                return i
+    return None
+
+
+def extract_json_from_response(text: str) -> dict[str, Any]:
+    """Extract valid JSON object from potentially malformed response.
+
+    Gemini sometimes appends garbage text after valid JSON.
+    This function finds and extracts the valid JSON portion.
+
+    Args:
+        text: Raw response text that may contain valid JSON followed by garbage.
+
+    Returns:
+        Parsed JSON dictionary.
+
+    Raises:
+        json.JSONDecodeError: If no valid JSON can be extracted.
+    """
+    text = text.strip()
+
+    # First, try parsing as-is
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+
+    # Try to find the end of the JSON object by counting braces
+    if text.startswith("{"):
+        end_idx = _find_json_end(text)
+        if end_idx is not None:
+            try:
+                return json.loads(text[: end_idx + 1])
+            except json.JSONDecodeError:
+                pass
+
+    # Last resort: raise the original error
+    raise json.JSONDecodeError("Could not extract valid JSON from response", text, 0)
 
 
 class AIExtractionService:
@@ -112,6 +189,9 @@ class AIExtractionService:
             )
 
             # Create content for Gemini
+            # Note: response_schema with TypedDict doesn't work well with deprecated
+            # google.generativeai package - it causes empty products. Using only
+            # response_mime_type with defensive JSON parsing instead.
             response = self.model.generate_content(
                 [
                     extraction_prompt,
@@ -120,15 +200,72 @@ class AIExtractionService:
                 generation_config=genai.GenerationConfig(
                     response_mime_type="application/json",
                     temperature=0.1,  # Low temperature for accuracy
+                    max_output_tokens=8192,  # Ensure response isn't truncated
                 ),
             )
 
             # Parse response
             result_text = response.text.strip()
-            result_data = json.loads(result_text)
 
-            # Check for error response
-            if "error" in result_data:
+            # Log raw response length for debugging truncation issues
+            logger.debug(
+                "gemini_raw_response",
+                image_index=image_index,
+                response_length=len(result_text),
+                response_preview=result_text[:200] if len(result_text) > 200 else result_text,
+            )
+
+            try:
+                # Use defensive JSON extraction to handle malformed responses
+                result_data = extract_json_from_response(result_text)
+            except json.JSONDecodeError as parse_error:
+                # Log the problematic response for debugging
+                logger.error(
+                    "json_parse_failed",
+                    image_index=image_index,
+                    error=str(parse_error),
+                    response_length=len(result_text),
+                    response_tail=result_text[-100:] if len(result_text) > 100 else result_text,
+                )
+                raise
+
+            # Log raw response for debugging (only structure, not full data)
+            logger.debug(
+                "gemini_response_structure",
+                image_index=image_index,
+                response_type=type(result_data).__name__,
+                has_invoice="invoice" in result_data if isinstance(result_data, dict) else False,
+                has_products="products" in result_data if isinstance(result_data, dict) else False,
+            )
+
+            # Handle list response - Gemini sometimes wraps the result in a list
+            if isinstance(result_data, list):
+                logger.warning(
+                    "unexpected_list_response",
+                    image_index=image_index,
+                    list_length=len(result_data),
+                )
+                if len(result_data) == 1 and isinstance(result_data[0], dict):
+                    # Check if it's a wrapped extraction result
+                    first_item = result_data[0]
+                    if "products" in first_item or "invoice" in first_item:
+                        # Gemini wrapped the proper response in a list - unwrap it
+                        logger.info("unwrapping_list_response", image_index=image_index)
+                        result_data = first_item
+                    else:
+                        # Single product in a list
+                        result_data = {"products": result_data, "extraction_confidence": 0.5}
+                else:
+                    # Assume it's a list of products directly
+                    result_data = {"products": result_data, "extraction_confidence": 0.5}
+
+            # Ensure result_data is a dict
+            if not isinstance(result_data, dict):
+                logger.error("unexpected_response_type", response_type=type(result_data).__name__)
+                raise AIExtractionError(f"Unexpected response type: {type(result_data).__name__}")
+
+            # Check for error response (now within the structured object)
+            if result_data.get("error"):
                 logger.warning("extraction_not_invoice", image_index=image_index)
                 return ExtractionResult(
                     invoice=ExtractedInvoice(image_index=image_index),
@@ -138,8 +275,16 @@ class AIExtractionService:
                 )
 
             # Build extraction result
-            invoice_data = result_data.get("invoice", {})
-            products_data = result_data.get("products", [])
+            invoice_data = result_data.get("invoice") or {}
+            products_data = result_data.get("products") or []
+
+            # Debug: log products array from Gemini
+            logger.debug(
+                "products_data_from_gemini",
+                image_index=image_index,
+                products_count=len(products_data),
+                products_preview=products_data[:3] if products_data else [],  # First 3 products
+            )
 
             products = [
                 ExtractedProduct(
@@ -150,7 +295,7 @@ class AIExtractionService:
                     suggested_category=p.get("suggested_category"),
                 )
                 for p in products_data
-                if p.get("description")
+                if str(p.get("description", "")).strip()  # Filter empty/whitespace-only
             ]
 
             extraction = ExtractionResult(
@@ -423,10 +568,12 @@ class AIExtractionService:
                 generation_config=genai.GenerationConfig(
                     response_mime_type="application/json",
                     temperature=0.3,
+                    max_output_tokens=2048,
                 ),
             )
 
-            result_data = json.loads(response.text.strip())
+            # Use defensive JSON extraction (same as extraction)
+            result_data = extract_json_from_response(response.text.strip())
             suggestions_data = result_data.get("suggestions", [])
 
             suggestions = [

@@ -1,8 +1,9 @@
 # Software Architecture Document
 ## Inventory Management REST API - Comercial Comarapa
 
-**Document Version:** 1.0  
+**Document Version:** 1.4  
 **Created:** January 2, 2026  
+**Updated:** January 9, 2026  
 **Related PRD:** PRD-inventory-management-api.md  
 
 ---
@@ -37,19 +38,25 @@ The system follows a **Layered Architecture** pattern with clear separation of c
                                 ▼ HTTP/HTTPS
 ┌─────────────────────────────────────────────────────────────────┐
 │                       API LAYER (FastAPI)                       │
-│  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌───────────┐  │
-│  │  Products   │ │ Categories  │ │  Inventory  │ │   Sales   │  │
-│  │   Router    │ │   Router    │ │   Router    │ │  Router   │  │
-│  └─────────────┘ └─────────────┘ └─────────────┘ └───────────┘  │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌────────┐ │
+│  │ Products │ │Categories│ │Inventory │ │  Import  │ │ Sales  │ │
+│  │  Router  │ │  Router  │ │  Router  │ │  Router  │ │ Router │ │
+│  └──────────┘ └──────────┘ └──────────┘ └──────────┘ └────────┘ │
 └─────────────────────────────────────────────────────────────────┘
                                 │
                                 ▼ Dependency Injection
 ┌─────────────────────────────────────────────────────────────────┐
 │                       SERVICE LAYER                             │
-│  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌───────────┐  │
-│  │  Product    │ │  Category   │ │  Inventory  │ │   Sale    │  │
-│  │  Service    │ │  Service    │ │  Service    │ │  Service  │  │
-│  └─────────────┘ └─────────────┘ └─────────────┘ └───────────┘  │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌────────┐ │
+│  │ Product  │ │ Category │ │Inventory │ │    AI    │ │  Sale  │ │
+│  │ Service  │ │ Service  │ │ Service  │ │Extraction│ │Service │ │
+│  └──────────┘ └──────────┘ └──────────┘ └──────────┘ └────────┘ │
+│                                              │                   │
+│                                              ▼ Gemini API        │
+│                                    ┌──────────────────┐          │
+│                                    │   Google Gemini  │          │
+│                                    │   (Vision API)   │          │
+│                                    └──────────────────┘          │
 └─────────────────────────────────────────────────────────────────┘
                                 │
                                 ▼ Repository Pattern
@@ -100,22 +107,29 @@ The system follows a **Layered Architecture** pattern with clear separation of c
 │                                                            │
 │  • Manages product catalog (~1000 items)                   │
 │  • Controls inventory movements                            │
+│  • AI-powered invoice extraction (Gemini Vision)          │
 │  • Registers sales transactions                            │
 │  • Provides low stock alerts                               │
 │                                                            │
 └────────────────────────────────────────────────────────────┘
                              │
-                             │ PostgreSQL Protocol
+              ┌──────────────┼──────────────┐
+              │              │              │
+              ▼              │              ▼
+     ┌─────────────────┐     │     ┌─────────────────┐
+     │   PostgreSQL    │     │     │  Google Gemini  │
+     │    (Docker)     │     │     │   Vision API    │
+     │                 │     │     │                 │
+     │  Local Dev DB   │     │     │  AI Extraction  │
+     └─────────────────┘     │     └─────────────────┘
+                             │
                              ▼
-              ┌──────────────┴──────────────┐
-              │                             │
-              ▼                             ▼
-     ┌─────────────────┐          ┌─────────────────┐
-     │   PostgreSQL    │          │    Supabase     │
-     │    (Docker)     │          │  (PostgreSQL)   │
-     │                 │          │                 │
-     │  Local Dev DB   │          │  Cloud Database │
-     └─────────────────┘          └─────────────────┘
+                    ┌─────────────────┐
+                    │    Supabase     │
+                    │  (PostgreSQL)   │
+                    │                 │
+                    │  Cloud Database │
+                    └─────────────────┘
 ```
 
 ### Container Diagram (C4 Level 2)
@@ -136,6 +150,11 @@ The system follows a **Layered Architecture** pattern with clear separation of c
 │  │  │  Uvicorn   │  │   Ruff     │  │   python-dotenv    │  │   │
 │  │  │  Server    │  │  Linter    │  │                    │  │   │
 │  │  └────────────┘  └────────────┘  └────────────────────┘  │   │
+│  │                                                          │   │
+│  │  ┌────────────┐  ┌────────────┐                          │   │
+│  │  │  Gemini    │  │   Jinja2   │                          │   │
+│  │  │  AI Client │  │  Templates │                          │   │
+│  │  └────────────┘  └────────────┘                          │   │
 │  │                                                          │   │
 │  └──────────────────────────────────────────────────────────┘   │
 │                              │                                   │
@@ -176,6 +195,8 @@ The system follows a **Layered Architecture** pattern with clear separation of c
 | psycopg | 3.1+ | PostgreSQL driver (local mode) |
 | httpx | 0.26+ | HTTP client (async) |
 | python-dotenv | 1.0+ | Environment variables |
+| google-generativeai | 0.8+ | Google Gemini AI API client |
+| Jinja2 | 3.1+ | Template engine for AI prompts |
 
 ### Database Infrastructure
 
@@ -306,7 +327,16 @@ BackEnd-CC/
 │       │   ├── product_service.py
 │       │   ├── category_service.py
 │       │   ├── inventory_service.py
+│       │   ├── ai_extraction_service.py  # AI-powered invoice extraction
+│       │   ├── matching_service.py       # Product matching with catalog
 │       │   └── sale_service.py    # (future)
+│       │
+│       ├── prompts/               # AI Prompt Templates
+│       │   ├── __init__.py
+│       │   ├── template_service.py       # Jinja2 template rendering
+│       │   └── templates/
+│       │       ├── extraction.j2         # Invoice extraction prompt
+│       │       └── autocomplete.j2       # Product name autocomplete
 │       │
 │       ├── db/                    # Database Layer
 │       │   ├── __init__.py        # Package exports
@@ -341,6 +371,10 @@ BackEnd-CC/
 │   │   ├── test_products.py
 │   │   ├── test_categories.py
 │   │   └── test_inventory.py
+│   │
+│   ├── services/                  # Service unit tests
+│   │   ├── __init__.py
+│   │   └── test_ai_extraction_service.py  # AI extraction tests (mocked)
 │   │
 │   └── models/                    # Model/schema tests
 │       ├── test_product.py
@@ -412,6 +446,10 @@ class Settings(BaseSettings):
     SUPABASE_URL: str
     SUPABASE_KEY: str
     
+    # Google Gemini AI
+    GEMINI_API_KEY: str | None = None
+    GEMINI_MODEL: str = "gemini-2.0-flash-lite"
+    
     # CORS
     CORS_ORIGINS: list[str] = ["http://localhost:3000"]
     
@@ -424,10 +462,11 @@ class Settings(BaseSettings):
 ```
 api/v1/router.py
        │
-       ├── products.py     → /api/v1/products/*
-       ├── categories.py   → /api/v1/categories/*
-       ├── inventory.py    → /api/v1/inventory/*
-       └── sales.py        → /api/v1/sales/*
+       ├── products.py        → /api/v1/products/*
+       ├── categories.py      → /api/v1/categories/*
+       ├── inventory.py       → /api/v1/inventory/*
+       ├── import_products.py → /api/v1/import/*       # AI extraction
+       └── sales.py           → /api/v1/sales/*
 ```
 
 ### 6.4 Model Schemas Organization
@@ -463,13 +502,26 @@ models/
 │   ├── MovementSummary     # Aggregated movement stats for a product
 │   └── MovementFilter      # Filter parameters for listing movements
 │
-└── sale.py
-    ├── SaleStatus          # Enum: COMPLETED, CANCELLED
-    ├── SaleItemCreate
-    ├── SaleCreate
-    ├── SaleItemResponse
-    ├── SaleResponse
-    └── DailySummaryResponse
+├── sale.py
+│   ├── SaleStatus          # Enum: COMPLETED, CANCELLED
+│   ├── SaleItemCreate
+│   ├── SaleCreate
+│   ├── SaleItemResponse
+│   ├── SaleResponse
+│   └── DailySummaryResponse
+│
+└── import_extraction.py    # AI Extraction Models
+    ├── ExtractedProduct    # Single product from invoice
+    ├── ExtractedInvoice    # Invoice metadata
+    ├── ExtractionResult    # Full extraction response
+    ├── MatchConfidence     # Enum: HIGH, MEDIUM, LOW, NONE
+    ├── ProductMatch        # Catalog match result
+    ├── MatchedProduct      # Extracted + matches
+    ├── DetectedCategory    # Category from extraction
+    ├── ImportProductsRequest   # API request
+    ├── ImportProductsResponse  # API response
+    ├── AutocompleteSuggestion  # Name suggestion
+    └── AutocompleteResponse    # Suggestions list
 ```
 
 ### 6.5 Service Layer Pattern
@@ -503,7 +555,80 @@ class ProductService:
             raise DuplicateSKUError(sku)
 ```
 
-### 6.6 Repository Layer Pattern
+### 6.6 AI Extraction Service Pattern
+
+```python
+# services/ai_extraction_service.py
+
+class AIExtractionService:
+    """
+    AI-powered product extraction from invoice images.
+    Uses Google Gemini Flash Vision for OCR and interpretation.
+    """
+    
+    def __init__(self):
+        self._template_service = get_template_service()
+        genai.configure(api_key=settings.gemini_api_key)
+        self.model = genai.GenerativeModel(settings.gemini_model)
+    
+    async def extract_from_image(
+        self,
+        image_base64: str,
+        image_type: str,
+        categories: list[dict] | None = None,
+    ) -> ExtractionResult:
+        """
+        Extract products from a single invoice image.
+        
+        Flow:
+        1. Render prompt with dynamic categories (Jinja2)
+        2. Send image + prompt to Gemini Vision API
+        3. Parse JSON response defensively
+        4. Filter and validate extracted products
+        5. Return structured ExtractionResult
+        """
+        # Render prompt with categories from database
+        prompt = self._template_service.render_extraction_prompt(
+            categories=categories,
+            default_category="Otros",
+        )
+        
+        # Generate content with Gemini
+        response = self.model.generate_content(
+            [prompt, {"mime_type": image_type, "data": image_data}],
+            generation_config=genai.GenerationConfig(
+                response_mime_type="application/json",
+                temperature=0.1,  # Low for accuracy
+                max_output_tokens=8192,  # Prevent truncation
+            ),
+        )
+        
+        # Defensive JSON parsing (handles malformed responses)
+        result_data = extract_json_from_response(response.text)
+        
+        # Build and return ExtractionResult
+        return ExtractionResult(...)
+```
+
+**Key Design Decisions:**
+
+| Decision | Rationale |
+|----------|-----------|
+| Jinja2 for prompts | Dynamic category injection from database |
+| Defensive JSON parsing | Gemini may append garbage after valid JSON |
+| Low temperature (0.1) | Prioritize accuracy over creativity |
+| max_output_tokens=8192 | Prevent response truncation for long invoices |
+| No response_schema | Deprecated SDK doesn't support TypedDict properly |
+
+**Prompt Engineering:**
+
+The extraction prompt (`extraction.j2`) instructs Gemini to:
+- **Interpret** handwritten text, not just OCR it
+- **Correct** illegible writing to real product names in Spanish
+- **Use context** (supplier name, product category) for disambiguation
+- Return structured JSON with invoice metadata and products array
+
+### 6.7 Repository Layer Pattern
 
 ```python
 # db/repositories/base.py
@@ -542,7 +667,57 @@ class BaseRepository[T]:
 
 ## 7. Data Flow
 
-### 7.1 Create Sale Flow
+### 7.1 AI Invoice Extraction Flow
+
+```
+┌──────────┐     ┌──────────────┐     ┌─────────────────┐     ┌──────────────┐
+│  Client  │────▶│ImportProducts│────▶│AIExtraction     │────▶│   Google     │
+│(Frontend)│     │    Router    │     │   Service       │     │   Gemini     │
+└──────────┘     └──────────────┘     └─────────────────┘     └──────────────┘
+                                              │
+                                              │ After extraction
+                                              ▼
+                                      ┌─────────────────┐
+                                      │  TemplateService│
+                                      │  (Jinja2)       │
+                                      └─────────────────┘
+                                              │
+                                              │ Render prompt
+                                              ▼
+                                      ┌─────────────────┐
+                                      │  CategoryRepo   │
+                                      │ (get categories)│
+                                      └─────────────────┘
+```
+
+**Sequence:**
+
+```
+1. Client POST /api/v1/import/extract-preview
+   └─▶ ImportProductsRequest { images: [base64...] }
+
+2. Import Router
+   └─▶ Fetch categories from database
+   └─▶ Call AIExtractionService.extract_from_images_batch()
+
+3. AIExtractionService
+   └─▶ For each image:
+       ├─▶ Render Jinja2 prompt with categories
+       ├─▶ Send to Gemini Vision API
+       ├─▶ Parse JSON response defensively
+       ├─▶ Validate and filter products
+       └─▶ Return ExtractionResult
+
+4. Import Router
+   └─▶ Call MatchingService.match_with_catalog()
+   └─▶ Return ImportProductsResponse with:
+       ├─▶ Extracted products
+       ├─▶ Matched existing products
+       ├─▶ Detected categories
+       └─▶ Processing time
+```
+
+### 7.2 Create Sale Flow
 
 ```
 ┌──────────┐     ┌──────────────┐     ┌─────────────┐     ┌──────────────┐
@@ -763,6 +938,8 @@ HTTP Response (JSON)
 | **Protocol (PEP 544)** | `core/protocols.py` | Type-safe abstractions |
 | **Atomic Operations** | `db/local_client.py` | Race condition prevention |
 | **Batch Fetching** | `db/repositories/` | N+1 query prevention |
+| **Template Method** | `prompts/template_service.py` | Dynamic AI prompt generation |
+| **Defensive Parsing** | `ai_extraction_service.py` | Robust JSON extraction |
 
 ### 9.2 Atomic Stock Operations Pattern
 
@@ -893,7 +1070,65 @@ def _enrich_movements_batch(self, movements_data: list[dict]) -> list[MovementRe
     ...
 ```
 
-### 9.6 Dependency Injection Flow
+### 9.6 AI Defensive JSON Parsing Pattern
+
+Gemini API responses can be inconsistent. We use defensive parsing to handle:
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    PROBLEM: Malformed AI Responses                   │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  Issue 1: Garbage appended after valid JSON                         │
+│  {"products": [...]}Here are some additional notes...               │
+│                     ↑ Invalid - breaks json.loads()                 │
+│                                                                     │
+│  Issue 2: Response wrapped in list                                  │
+│  [{"products": [...], "invoice": {...}}]                           │
+│  ↑ Expected dict, got list                                         │
+│                                                                     │
+│  Issue 3: Truncated JSON (token limit)                              │
+│  {"products": [{"name": "Pro...                                    │
+│                               ↑ Incomplete                         │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────┐
+│                    SOLUTION: Defensive Parsing                       │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  def extract_json_from_response(text: str) -> dict:                │
+│      # 1. Try direct parse                                          │
+│      try:                                                          │
+│          return json.loads(text)                                   │
+│      except JSONDecodeError:                                       │
+│          pass                                                      │
+│                                                                     │
+│      # 2. Find JSON object end by counting braces                  │
+│      if text.startswith("{"):                                      │
+│          end_idx = _find_json_end(text)  # Brace-matching          │
+│          if end_idx:                                               │
+│              return json.loads(text[:end_idx + 1])                 │
+│                                                                     │
+│      # 3. Fail gracefully                                          │
+│      raise JSONDecodeError(...)                                    │
+│                                                                     │
+│  # Handle list-wrapped responses                                   │
+│  if isinstance(result_data, list) and len(result_data) == 1:       │
+│      result_data = result_data[0]  # Unwrap                        │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**Implementation in `ai_extraction_service.py`:**
+
+| Function | Purpose |
+|----------|---------|
+| `_find_json_end()` | Find closing brace by counting, respecting strings |
+| `extract_json_from_response()` | Extract valid JSON from potentially malformed text |
+| List unwrapping | Handle Gemini wrapping responses in arrays |
+
+### 9.7 Dependency Injection Flow
 
 ```python
 # api/deps.py
@@ -1142,6 +1377,7 @@ Backend-ComercialComarapa/
 | SUPABASE_URL | Staging/Prod | `.env.staging`, `.env.production` |
 | SUPABASE_KEY | Staging/Prod | `.env.staging`, `.env.production` |
 | SUPABASE_SERVICE_KEY | Staging/Prod | `.env.staging`, `.env.production` |
+| GEMINI_API_KEY | All | `.env.*` (Google AI Studio key) |
 
 > **Note:** For sensitive credentials, use `.env.*.local` files (git-ignored) 
 > or set environment variables directly in your deployment platform.
@@ -1189,8 +1425,23 @@ comercial_comarapa/
 │   ├── product_service.py
 │   │   └── imports: db.repositories.product, db.repositories.category, core.exceptions
 │   │
-│   └── inventory_service.py
-│       └── imports: db.repositories.inventory, db.repositories.product, core.exceptions
+│   ├── inventory_service.py
+│   │   └── imports: db.repositories.inventory, db.repositories.product, core.exceptions
+│   │
+│   ├── ai_extraction_service.py
+│   │   └── imports: google.generativeai, config, models.import_extraction, 
+│   │                prompts.template_service, core.exceptions, core.logging
+│   │
+│   └── matching_service.py
+│       └── imports: models.import_extraction
+│
+├── prompts/
+│   ├── template_service.py
+│   │   └── imports: jinja2, pathlib
+│   │
+│   └── templates/
+│       ├── extraction.j2    (Jinja2 template)
+│       └── autocomplete.j2  (Jinja2 template)
 │
 ├── db/
 │   ├── database.py
@@ -1267,4 +1518,5 @@ comercial_comarapa/
 | 1.1 | 2026-01-02 | - | Updated db/ module structure after refactoring |
 | 1.2 | 2026-01-02 | - | Added atomic operations, inventory patterns, updated exception hierarchy, fixed project structure |
 | 1.3 | 2026-01-03 | - | Added .gitattributes, MovementSummary/MovementFilter schemas, fixed UniqueConstraintViolationError hierarchy |
+| 1.4 | 2026-01-09 | - | Added AI Extraction Service documentation: Google Gemini integration, Jinja2 templates, defensive JSON parsing, import_products API, import_extraction models |
 
